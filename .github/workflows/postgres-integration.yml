@@ -1,0 +1,85 @@
+name: PostgreSQL 16 Integration & Safety Verification
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration-test:
+    name: Disposable PostgreSQL 16 Engine Verification
+    runs-on: ubuntu-latest
+
+    # Ephemeral, dedicated PostgreSQL 16 service container
+    # Strictly isolated; zero network link to Supabase, staging, or production
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Verify PostgreSQL Client (psql)
+        run: |
+          which psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
+          psql --version
+
+      - name: Verify PostgreSQL Service Readiness
+        run: |
+          echo "Checking PostgreSQL connection..."
+          pg_isready -h localhost -p 5432 -U postgres
+
+      - name: Run Pre-Deployment Configuration & Safety Suite
+        run: npm run test:pre-deploy
+
+      - name: Run Offline Fault-Recovery Simulator
+        run: node scripts/test-offline-recovery.mjs
+
+      - name: Execute Real PostgreSQL 16 Integration Test Suite
+        id: run_integration
+        env:
+          CI: "true"
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+        run: |
+          echo "================================================================================"
+          echo "  STARTING REAL POSTGRESQL 16 INTEGRATION EXECUTION"
+          echo "  Target: Disposable postgres:16 container on localhost:5432"
+          echo "================================================================================"
+          npm run test:integration:pg 2>&1 | tee integration-test.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "Process finished with exit code: $EXIT_CODE"
+          exit $EXIT_CODE
+
+      - name: Upload Integration Test Logs & Forensic Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-16-integration-logs
+          path: integration-test.log
+          retention-days: 14
