@@ -68,6 +68,14 @@ RETURNS text[] AS $$
   SELECT string_to_array(name, '/');
 $$ LANGUAGE sql IMMUTABLE;
 
--- Comment indicating shim initialized
+-- Comments indicating shim initialized and individual object provenance
 COMMENT ON SCHEMA auth IS 'Life Drop test compatibility mock for Supabase Auth';
 COMMENT ON SCHEMA storage IS 'Life Drop test compatibility mock for Supabase Storage';
+
+COMMENT ON FUNCTION auth.uid() IS 'Life Drop test compatibility mock for auth.uid';
+COMMENT ON FUNCTION auth.jwt() IS 'Life Drop test compatibility mock for auth.jwt';
+COMMENT ON FUNCTION auth.role() IS 'Life Drop test compatibility mock for auth.role';
+
+COMMENT ON TABLE storage.buckets IS 'Life Drop test compatibility mock for storage.buckets';
+COMMENT ON TABLE storage.objects IS 'Life Drop test compatibility mock for storage.objects';
+COMMENT ON FUNCTION storage.foldername(text) IS 'Life Drop test compatibility mock for storage.foldername';
