@@ -23,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+.migration_failure.json
 
 # debug
 npm-debug.log*
@@ -34,9 +35,14 @@ yarn-error.log*
 .env*
 !.env.example
 !.env.staging.example
+!.env.production.example
 
 # vercel
 .vercel
+
+# supabase
+.supabase
+supabase/.temp/
 
 # typescript
 *.tsbuildinfo

@@ -236,7 +236,7 @@ async function runTests() {
 
       assert.ok(output.includes("DRY RUN AUDIT REPORT (NO DATABASE MUTATIONS)"));
       assert.ok(output.includes("Differs from Staging (vblfkcyeefiwhhpbwxhr): YES (Strictly Isolated)"));
-      assert.ok(output.includes("Local Migrations Verified: 15 ordered files"));
+      assert.ok(output.includes(`Local Migrations Verified: ${ORDERED_MIGRATIONS.length} ordered files`));
       assert.ok(output.includes("Remote Mutations Applied: NONE"));
     });
 
@@ -255,7 +255,7 @@ async function runTests() {
       }
     });
 
-    test("All 15 ordered migration files exist and compute valid SHA-256 checksums", () => {
+    test(`All ${ORDERED_MIGRATIONS.length} ordered migration files exist and compute valid SHA-256 checksums`, () => {
       const output = execSync("node scripts/deploy-migrations.mjs --target=production --dry-run", {
         cwd: ROOT_DIR,
         stdio: "pipe",
@@ -263,7 +263,7 @@ async function runTests() {
 
       const checksumMatches = output.match(/sha256:[a-f0-9]{16}\.\.\./g);
       assert.ok(checksumMatches, "Should find checksum matches");
-      assert.strictEqual(checksumMatches.length, 15, "Should compute checksums for all 15 migrations");
+      assert.strictEqual(checksumMatches.length, ORDERED_MIGRATIONS.length, "Should compute checksums for all ordered migrations");
     });
 
     test("Migration runner in --dry-run mode makes zero network requests and terminates before I/O", () => {
@@ -401,7 +401,7 @@ async function runTests() {
       assert.ok(runnerSrc.includes("DROP TYPE IF EXISTS public.${typ} RESTRICT;"), "Must drop types with RESTRICT");
     });
 
-    test("LIFEDROP_FUNCTIONS exact signatures match all functions defined across 15 migrations", () => {
+    test("LIFEDROP_FUNCTIONS exact signatures match all functions defined across migrations", () => {
       const MIGRATIONS_DIR = path.join(ROOT_DIR, "supabase", "migrations");
 
       // Extract all function definitions from migration files
@@ -812,7 +812,7 @@ async function runTests() {
 
     const MIGRATIONS_DIR = path.join(ROOT_DIR, "supabase", "migrations");
 
-    test("Every CREATE POLICY across all 15 migration files is guarded by DROP POLICY IF EXISTS", () => {
+    test("Every CREATE POLICY across all migration files is guarded by DROP POLICY IF EXISTS", () => {
       const policyCreationRegex = /CREATE\s+POLICY\s+"([^"]+)"/g;
 
       for (const migrationFile of ORDERED_MIGRATIONS) {
@@ -879,7 +879,7 @@ async function runTests() {
       );
     });
 
-    test("All 15 ordered migrations have valid verification specifications", () => {
+    test(`All ${ORDERED_MIGRATIONS.length} ordered migrations have valid verification specifications`, () => {
       for (const migrationFile of ORDERED_MIGRATIONS) {
         assert.ok(
           MIGRATION_VERIFICATION_SPECS[migrationFile],

@@ -78,8 +78,10 @@ const FORBIDDEN_DB_NAMES = new Set([
   "defaultdb",
 ]);
 
-// Life Drop specific tables created across the 15 migrations in exact reverse dependency order
+// Life Drop specific tables created across the migrations in exact reverse dependency order
 export const LIFEDROP_TABLES_REVERSE_DEPENDENCY = [
+  "donor_points_transactions",     // References donor_profiles, donations, profiles
+  "points_config",                 // References profiles
   "donations",                     // References blood_requests, donor_commitments, profiles, donor_profiles
   "notifications",                 // References blood_requests, donor_commitments, request_matches
   "donor_commitments",             // References blood_requests, profiles, request_matches, donor_profiles

@@ -36,6 +36,7 @@ export const ORDERED_MIGRATIONS = [
   "20261009_milestone6_donation_tracking.sql",
   "20261009_milestone7_outbox_and_reconciliation.sql",
   "20261009_milestone8_security_hardening.sql",
+  "20261020_milestone9_donor_points_and_reporting.sql",
 ];
 
 export function extractEnumAlterations(sqlContent) {
@@ -240,6 +241,23 @@ export const MIGRATION_VERIFICATION_SPECS = {
   },
   "20261009_milestone8_security_hardening.sql": {
     functions: ["claim_outbox_jobs", "reconcile_request_counters", "prevent_audit_log_modification"],
+  },
+  "20261020_milestone9_donor_points_and_reporting.sql": {
+    tables: ["points_config", "donor_points_transactions"],
+    columns: [
+      { table: "points_config", column: "key" },
+      { table: "points_config", column: "value" },
+      { table: "donor_points_transactions", column: "donor_id" },
+      { table: "donor_points_transactions", column: "points" },
+      { table: "donor_points_transactions", column: "transaction_type" },
+    ],
+    policies: [
+      { table: "points_config", name: "Anyone can read points config" },
+      { table: "points_config", name: "Authorized staff manage points config" },
+      { table: "donor_points_transactions", name: "Donors view own points transactions" },
+      { table: "donor_points_transactions", name: "Authorized staff view all points transactions" },
+      { table: "donor_points_transactions", name: "Privileged staff insert points adjustments" },
+    ],
   },
 };
 
