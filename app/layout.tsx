@@ -16,13 +16,17 @@ export const metadata: Metadata = {
     "Mission-critical blood request coordination network connecting urgent patient needs with voluntary donors.",
 };
 
+const clerkPublishableKey =
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+  "pk_test_Y2xvc2Utc3RhZy00OTEwLmNsZXJrLmFjY291bnRzLmRldiQ";
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
+    <ClerkProvider publishableKey={clerkPublishableKey}>
       <html lang="en" className={`${inter.className} h-full antialiased`}>
         <body className="min-h-full flex flex-col bg-background text-foreground">
           {/* Top Medical Disclaimer Notification Bar */}
