@@ -3,13 +3,25 @@
 import Link from "next/link";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
-import { HeartPulse, User, Bell } from "lucide-react";
+import { HeartPulse, User, Bell, Shield } from "lucide-react";
 
 export function AuthNav() {
-  const { isSignedIn, isLoaded } = useUser();
+  const { isSignedIn, isLoaded, user } = useUser();
 
   // When Clerk is loaded and user is authenticated
-  if (isLoaded && isSignedIn) {
+  if (isLoaded && isSignedIn && user) {
+    const primaryEmail = (
+      user.primaryEmailAddress?.emailAddress ||
+      user.emailAddresses?.[0]?.emailAddress ||
+      ""
+    ).toLowerCase().trim();
+    const role = (user.publicMetadata?.role as string) || "USER";
+
+    // Strictly check verified administrator identity to prevent ordinary users from seeing the Admin link
+    const isAuthorizedAdmin =
+      (primaryEmail === "christian.paradiang@urios.edu.ph" || user.id === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU") &&
+      (role === "ADMIN" || role === "SUPER_ADMIN" || primaryEmail === "christian.paradiang@urios.edu.ph");
+
     return (
       <div className="flex items-center gap-2.5">
         <Link href="/donor/notifications" title="Candidate Alerts & Notifications">
@@ -17,6 +29,19 @@ export function AuthNav() {
             <Bell className="size-4" />
           </Button>
         </Link>
+
+        {isAuthorizedAdmin && (
+          <Link href="/admin">
+            <Button
+              variant="outline"
+              size="sm"
+              className="inline-flex gap-1.5 text-xs font-semibold border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500 shadow-xs"
+            >
+              <Shield className="size-3.5" />
+              Admin
+            </Button>
+          </Link>
+        )}
 
         <Link href="/dashboard">
           <Button variant="outline" size="sm" className="hidden sm:inline-flex gap-1.5 text-xs font-medium">

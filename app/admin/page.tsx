@@ -4,6 +4,7 @@ import Link from "next/link";
 
 export const instant = false;
 import { listReviewQueueBloodRequests } from "@/lib/requests/service";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -21,6 +22,10 @@ import {
   ClipboardList,
   FileSpreadsheet,
   HeartHandshake,
+  Droplet,
+  Users,
+  Award,
+  Radio,
 } from "lucide-react";
 
 import { resolveUserRole } from "@/lib/auth";
@@ -71,9 +76,37 @@ export default async function AdminPage() {
     );
   }
 
+  // 1. Fetch live review queue
   const reviewQueueRes = await listReviewQueueBloodRequests(user.id, primaryEmail);
   const reviewQueue = reviewQueueRes.requests || [];
 
+  // 2. Fetch platform overview metrics
+  let activeRequestsCount = 0;
+  let totalDonorsCount = 0;
+  let completedDonationsCount = 0;
+  let pointsPerDonation = 100;
+
+  try {
+    const adminClient = createSupabaseAdminClient();
+    if (adminClient) {
+      const [reqCount, donorCount, donCount, ptsConfig] = await Promise.all([
+        adminClient.from("blood_requests").select("id", { count: "exact", head: true }).eq("status", "ACTIVE"),
+        adminClient.from("donor_profiles").select("id", { count: "exact", head: true }),
+        adminClient.from("donations").select("id", { count: "exact", head: true }).eq("status", "COMPLETED"),
+        adminClient.from("points_config").select("value").eq("key", "points_per_donation").maybeSingle(),
+      ]);
+      activeRequestsCount = reqCount.count || 0;
+      totalDonorsCount = donorCount.count || 0;
+      completedDonationsCount = donCount.count || 0;
+      if (ptsConfig.data && typeof ptsConfig.data.value === "number") {
+        pointsPerDonation = ptsConfig.data.value;
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load admin overview metrics:", err);
+  }
+
+  // 3. Fetch outbox metrics for platform admin
   const outboxMetrics = isPrivileged
     ? await getOutboxMetrics()
     : {
@@ -92,36 +125,55 @@ export default async function AdminPage() {
   return (
     <div className="flex-1 py-10 px-4 max-w-5xl mx-auto w-full space-y-8">
       <div>
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mb-2"
-        >
-          <ArrowLeft className="size-3.5" />
-          Back to Dashboard
-        </Link>
+        <div className="flex items-center gap-3 mb-2">
+          <Link
+            href="/dashboard?view=user"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="size-3.5" />
+            Switch to Personal User View
+          </Link>
+          <span className="text-muted-foreground/40 text-xs">&bull;</span>
+          <Link
+            href="/requests"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Radio className="size-3.5" />
+            Public Blood Directory
+          </Link>
+          <span className="text-muted-foreground/40 text-xs">&bull;</span>
+          <Link
+            href="/donor"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <HeartHandshake className="size-3.5" />
+            Donor Network
+          </Link>
+        </div>
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-3xl font-extrabold tracking-tight">System Governance & Administration</h1>
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold">
                 Role: {userRole}
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground mt-1">
-              Hospital organization onboarding, requisition verification queue, and immutable audit logs.
+              Authorized Administrator: <span className="font-semibold text-foreground">{primaryEmail}</span>. Requisition review, donor points, hospital governance, and immutable audit logs.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Link href="/admin/reports">
-              <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 text-xs font-semibold">
+              <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 text-xs font-semibold shadow-xs">
                 <FileSpreadsheet className="size-3.5" />
                 Reports & Analytics
               </Button>
             </Link>
             <Link href="/admin/donors">
               <Button size="sm" variant="outline" className="gap-1.5 text-xs font-semibold">
-                <HeartHandshake className="size-3.5" />
+                <Users className="size-3.5" />
                 Donor Oversight
               </Button>
             </Link>
@@ -129,13 +181,76 @@ export default async function AdminPage() {
         </div>
       </div>
 
+      {/* Live System Overview Metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="border-border/60">
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs flex items-center justify-between">
+              Verification Queue
+              <ClipboardList className="size-3.5 text-amber-500" />
+            </CardDescription>
+            <CardTitle className="text-2xl font-black tracking-tight text-amber-600 dark:text-amber-400">
+              {reviewQueue.length}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-[11px] text-muted-foreground pt-0">
+            Requisitions awaiting clinical review
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60">
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs flex items-center justify-between">
+              Active Requests
+              <Droplet className="size-3.5 text-primary" />
+            </CardDescription>
+            <CardTitle className="text-2xl font-black tracking-tight text-primary">
+              {activeRequestsCount}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-[11px] text-muted-foreground pt-0">
+            Active patient requisitions in directory
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60">
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs flex items-center justify-between">
+              Registered Donors
+              <Users className="size-3.5 text-emerald-500" />
+            </CardDescription>
+            <CardTitle className="text-2xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
+              {totalDonorsCount}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-[11px] text-muted-foreground pt-0">
+            Volunteer donors across network
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60">
+          <CardHeader className="pb-2">
+            <CardDescription className="text-xs flex items-center justify-between">
+              Points Policy
+              <Award className="size-3.5 text-purple-500" />
+            </CardDescription>
+            <CardTitle className="text-2xl font-black tracking-tight text-purple-600 dark:text-purple-400">
+              {pointsPerDonation} <span className="text-xs font-normal text-muted-foreground">pts</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-[11px] text-muted-foreground pt-0">
+            {completedDonationsCount} verified completed donations
+          </CardContent>
+        </Card>
+      </div>
+
       <Alert className="border-border/60 bg-muted/30">
         <Lock className="size-4 text-primary" />
         <AlertTitle className="font-semibold text-sm">
-          Server-Side Role Enforcement
+          Server-Side Role Enforcement & Initial Admin Policy
         </AlertTitle>
         <AlertDescription className="text-xs text-muted-foreground">
-          Administrative routes require verified server-side claims. Client-provided roles or parameters are strictly untrusted and stripped at runtime.
+          Administrative features enforce verified server-side claims with exclusive initial authorization for <strong>christian.paradiang@urios.edu.ph</strong>. Client-provided roles or parameters are strictly untrusted and stripped at runtime.
         </AlertDescription>
       </Alert>
 

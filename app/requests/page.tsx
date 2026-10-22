@@ -21,8 +21,18 @@ import {
   Radio,
 } from "lucide-react";
 
+import { resolveUserRole } from "@/lib/auth";
+import { UserRole } from "@/lib/supabase/types";
+
 export default async function BloodRequestsPage() {
   const user = await currentUser();
+
+  let userRole: UserRole = "USER";
+  if (user) {
+    const primaryEmail = (user.emailAddresses?.[0]?.emailAddress || "").toLowerCase();
+    userRole = await resolveUserRole(user.id, primaryEmail);
+  }
+  const isPrivileged = ["ADMIN", "SUPER_ADMIN", "MODERATOR", "HOSPITAL_STAFF"].includes(userRole);
 
   const [userRequestsRes, activeRequestsRes] = await Promise.all([
     user ? listUserBloodRequests(user.id) : Promise.resolve({ success: true, requests: [] }),
@@ -42,19 +52,54 @@ export default async function BloodRequestsPage() {
             <Badge variant="outline" className="text-xs">
               Intake & Verification
             </Badge>
+            {isPrivileged && (
+              <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-xs">
+                Role: {userRole}
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             Emergency and routine hospital blood requests verified for volunteer donor matching.
           </p>
         </div>
 
-        <Link href="/requests/new">
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shadow-sm font-semibold">
-            <PlusCircle className="size-4" />
-            Create Request
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          {isPrivileged && (
+            <Link href="/admin">
+              <Button variant="outline" className="gap-1.5 font-semibold text-xs border-primary/30 text-primary hover:bg-primary/10">
+                <ShieldCheck className="size-4" />
+                Admin Queue
+              </Button>
+            </Link>
+          )}
+          <Link href="/requests/new">
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shadow-sm font-semibold">
+              <PlusCircle className="size-4" />
+              Create Request
+            </Button>
+          </Link>
+        </div>
       </div>
+
+      {/* Privileged Staff & Admin Notice */}
+      {isPrivileged && (
+        <Alert className="border-primary/30 bg-primary/5">
+          <ShieldCheck className="size-4 text-primary" />
+          <AlertTitle className="text-foreground font-semibold text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span>
+              {userRole === "ADMIN" ? "Platform Administrator Authorization" : "Clinical Staff Authorization"} Active
+            </span>
+            <Link href="/admin">
+              <Button size="sm" className="bg-primary text-primary-foreground font-semibold gap-1 text-xs h-7">
+                Open Admin Review Queue &rarr;
+              </Button>
+            </Link>
+          </AlertTitle>
+          <AlertDescription className="text-muted-foreground text-xs mt-1">
+            You have verification privileges. Unverified patient requisitions waiting in SUBMITTED or UNDER_REVIEW status appear in the System Administration Review Queue.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Medical Safety Notice */}
       <Alert className="border-border/60 bg-muted/30">
@@ -68,7 +113,7 @@ export default async function BloodRequestsPage() {
       </Alert>
 
       {/* Tabs Layout */}
-      <Tabs defaultValue={user ? "my-requests" : "active-directory"} className="space-y-6">
+      <Tabs defaultValue={user && userRequests.length > 0 ? "my-requests" : "active-directory"} className="space-y-6">
         <TabsList className="grid w-full sm:w-auto grid-cols-2">
           {user && (
             <TabsTrigger value="my-requests" className="gap-2 text-xs">
@@ -99,17 +144,31 @@ export default async function BloodRequestsPage() {
                     <Droplet className="size-6" />
                   </div>
                   <div className="space-y-1">
-                    <h3 className="font-semibold text-base">No Requisitions Yet</h3>
+                    <h3 className="font-semibold text-base">
+                      {isPrivileged ? "No Personal Requisitions" : "No Requisitions Yet"}
+                    </h3>
                     <p className="text-xs text-muted-foreground max-w-sm">
-                      You haven’t initiated any blood requests. Create your first requisition for hospital verification and volunteer donor coordination.
+                      {isPrivileged
+                        ? "You haven't initiated personal blood requests. To review, verify, and approve patient requisitions submitted by all users, use the Admin Review Queue."
+                        : "You haven’t initiated any blood requests. Create your first requisition for hospital verification and volunteer donor coordination."}
                     </p>
                   </div>
-                  <Link href="/requests/new" className="pt-2">
-                    <Button size="sm" className="bg-primary text-primary-foreground gap-1.5 font-semibold">
-                      <PlusCircle className="size-4" />
-                      Create First Requisition
-                    </Button>
-                  </Link>
+                  <div className="flex items-center gap-2 pt-2">
+                    {isPrivileged && (
+                      <Link href="/admin">
+                        <Button size="sm" className="bg-primary text-primary-foreground gap-1.5 font-semibold">
+                          <ShieldCheck className="size-4" />
+                          Open Admin Review Queue
+                        </Button>
+                      </Link>
+                    )}
+                    <Link href="/requests/new">
+                      <Button size="sm" variant={isPrivileged ? "outline" : "default"} className={isPrivileged ? "" : "bg-primary text-primary-foreground gap-1.5 font-semibold"}>
+                        <PlusCircle className="size-4" />
+                        Create Requisition
+                      </Button>
+                    </Link>
+                  </div>
                 </CardContent>
               </Card>
             ) : (

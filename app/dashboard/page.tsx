@@ -24,11 +24,34 @@ import { resolveUserRole } from "@/lib/auth";
 
 export const instant = false;
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ view?: string }>;
+}) {
   const user = await currentUser();
 
   if (!user) {
     redirect("/sign-in");
+  }
+
+  const primaryEmail = user.emailAddresses[0]?.emailAddress || "No email on record";
+  const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "User";
+
+  // Check admin authorization strictly on server under initial administrator policy
+  const userRole = await resolveUserRole(user.id, primaryEmail);
+  const normalizedEmail = primaryEmail.toLowerCase().trim();
+  const isAdmin =
+    (normalizedEmail === "christian.paradiang@urios.edu.ph" || user.id === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU") &&
+    (userRole === "ADMIN" || userRole === "SUPER_ADMIN");
+
+  const resolvedParams = searchParams ? await searchParams : undefined;
+  const isPersonalView = resolvedParams?.view === "personal" || resolvedParams?.view === "user";
+
+  // The authorized administrator must never be trapped in the ordinary user requisition workflow.
+  // Unless personal view is explicitly requested (?view=personal), route them directly to /admin.
+  if (isAdmin && !isPersonalView) {
+    redirect("/admin");
   }
 
   // 1. Verify Supabase connection server-side
@@ -58,16 +81,6 @@ export default async function DashboardPage() {
   // 2. Fetch current donor status
   const donor = await getDonorProfile(user.id);
   const completion = calculateProfileCompletion(donor);
-
-  const primaryEmail = user.emailAddresses[0]?.emailAddress || "No email on record";
-  const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "User";
-
-  // Check admin authorization strictly on server under initial administrator policy
-  const userRole = await resolveUserRole(user.id, primaryEmail);
-  const normalizedEmail = primaryEmail.toLowerCase().trim();
-  const isAdmin =
-    normalizedEmail === "christian.paradiang@urios.edu.ph" &&
-    (userRole === "ADMIN" || userRole === "SUPER_ADMIN");
 
   return (
     <div className="flex-1 py-10 px-4 max-w-6xl mx-auto w-full space-y-8">
