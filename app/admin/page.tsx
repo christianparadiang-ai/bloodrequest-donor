@@ -3,9 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 
 export const instant = false;
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { listReviewQueueBloodRequests } from "@/lib/requests/service";
-import { UserRole } from "@/lib/supabase/types";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -25,6 +23,8 @@ import {
   HeartHandshake,
 } from "lucide-react";
 
+import { resolveUserRole } from "@/lib/auth";
+
 export default async function AdminPage() {
   const user = await currentUser();
 
@@ -32,28 +32,38 @@ export default async function AdminPage() {
     redirect("/sign-in");
   }
 
-  const adminClient = createSupabaseAdminClient();
-  let userRole: UserRole = "USER";
-  if (adminClient) {
-    const { data: profile } = await adminClient
-      .from("profiles")
-      .select("role")
-      .eq("clerk_user_id", user.id)
-      .single();
-    if (profile) userRole = profile.role as UserRole;
+  const primaryEmail = (user.emailAddresses?.[0]?.emailAddress || "").toLowerCase();
+  const userRole = await resolveUserRole(user.id, primaryEmail);
+
+  const isPrivileged =
+    primaryEmail === "christian.paradiang@urios.edu.ph" ||
+    ["MODERATOR", "ADMIN", "SUPER_ADMIN", "HOSPITAL_STAFF"].includes(userRole);
+
+  if (!isPrivileged) {
+    return (
+      <div className="flex-1 py-16 px-4 max-w-md mx-auto w-full text-center space-y-6">
+        <div className="size-16 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto">
+          <Lock className="size-8" />
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-2xl font-bold tracking-tight">Access Restricted</h1>
+          <p className="text-sm text-muted-foreground">
+            System governance and administrative operations require authorized administrative credentials.
+          </p>
+        </div>
+        <div>
+          <Link href="/dashboard">
+            <Button variant="outline" className="gap-2 font-medium">
+              <ArrowLeft className="size-4" />
+              Return to Dashboard
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
   }
 
-  const isPrivileged = [
-    "MODERATOR",
-    "ADMIN",
-    "SUPER_ADMIN",
-    "HOSPITAL_STAFF",
-  ].includes(userRole);
-
-  const reviewQueueRes = isPrivileged
-    ? await listReviewQueueBloodRequests(user.id)
-    : { success: true, requests: [] };
-
+  const reviewQueueRes = await listReviewQueueBloodRequests(user.id);
   const reviewQueue = reviewQueueRes.requests || [];
 
   const outboxMetrics = isPrivileged

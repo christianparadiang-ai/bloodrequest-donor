@@ -20,6 +20,8 @@ import {
   Compass,
 } from "lucide-react";
 
+import { resolveUserRole } from "@/lib/auth";
+
 export const instant = false;
 
 export default async function DashboardPage() {
@@ -59,6 +61,10 @@ export default async function DashboardPage() {
 
   const primaryEmail = user.emailAddresses[0]?.emailAddress || "No email on record";
   const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "User";
+
+  // Check admin authorization strictly on server
+  const userRole = await resolveUserRole(user.id, primaryEmail);
+  const isAdmin = userRole === "ADMIN" || userRole === "SUPER_ADMIN" || primaryEmail.toLowerCase() === "christian.paradiang@urios.edu.ph";
 
   return (
     <div className="flex-1 py-10 px-4 max-w-6xl mx-auto w-full space-y-8">
@@ -238,7 +244,7 @@ export default async function DashboardPage() {
       {/* Module Navigation */}
       <div className="pt-2">
         <h2 className="text-base font-semibold mb-3">Module Navigation (Milestone Roadmap)</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className={`grid grid-cols-1 ${isAdmin ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-4`}>
           <Link href="/requests" className="group">
             <Card className="hover:border-primary/50 transition-colors h-full">
               <CardHeader className="pb-2">
@@ -267,19 +273,21 @@ export default async function DashboardPage() {
             </Card>
           </Link>
 
-          <Link href="/admin" className="group">
-            <Card className="hover:border-primary/50 transition-colors h-full">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center justify-between">
-                  Admin & Governance
-                  <ArrowRight className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Organization verification, audit logging, system metrics.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
+          {isAdmin && (
+            <Link href="/admin" className="group">
+              <Card className="hover:border-primary/50 transition-colors h-full border-primary/20 bg-primary/[0.02]">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center justify-between text-primary">
+                    Admin & Governance
+                    <ArrowRight className="size-4 text-primary transition-colors" />
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Organization verification, audit logging, system metrics.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            </Link>
+          )}
         </div>
       </div>
     </div>

@@ -325,7 +325,7 @@ export async function getBloodRequestById(
         .from("profiles")
         .select("*")
         .eq("clerk_user_id", clerkUserId)
-        .single();
+        .maybeSingle();
       if (p) viewerProfile = p as Profile;
     }
 
@@ -333,7 +333,7 @@ export async function getBloodRequestById(
       .from("blood_requests")
       .select("*")
       .eq("id", requestId)
-      .single();
+      .maybeSingle();
 
     if (error || !record) {
       return { success: false, authorized: false, error: "Blood requisition not found." };
@@ -440,7 +440,7 @@ export async function listActiveBloodRequests(
         .from("profiles")
         .select("id")
         .eq("clerk_user_id", viewerClerkUserId)
-        .single();
+        .maybeSingle();
       if (p) viewerProfileId = p.id;
     }
 

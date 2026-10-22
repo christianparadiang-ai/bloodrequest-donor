@@ -175,9 +175,23 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ received: true, note: "No user id in event." });
       }
 
-      const primaryEmail = data.email_addresses?.[0]?.email_address || "";
+      const primaryEmail = (data.email_addresses?.[0]?.email_address || "").toLowerCase().trim();
       const fullName = [data.first_name, data.last_name].filter(Boolean).join(" ") || "User";
-      const metadataRole = (data.public_metadata?.role as string) || "USER";
+      
+      // Strict role resolution: Only christian.paradiang@urios.edu.ph receives initial ADMIN role
+      let roleToAssign: string = "USER";
+      if (primaryEmail === "christian.paradiang@urios.edu.ph") {
+        roleToAssign = "ADMIN";
+      } else {
+        const candidateRole = (data.public_metadata?.role as string) || "USER";
+        // Disallow untrusted client/public metadata from claiming administrative roles
+        if (["ADMIN", "SUPER_ADMIN"].includes(candidateRole)) {
+          console.warn(`Untrusted role promotion attempt detected for ${primaryEmail}: denied.`);
+          roleToAssign = "USER";
+        } else if (["DONOR", "HOSPITAL_STAFF", "MODERATOR", "USER"].includes(candidateRole)) {
+          roleToAssign = candidateRole;
+        }
+      }
 
       // Upsert profile in public.profiles
       const { error: upsertErr } = await admin.from("profiles").upsert(
@@ -185,7 +199,7 @@ export async function POST(req: NextRequest) {
           clerk_user_id: clerkUserId,
           email: primaryEmail || "unknown@lifedrop.internal",
           full_name: fullName,
-          role: metadataRole,
+          role: roleToAssign,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "clerk_user_id" }

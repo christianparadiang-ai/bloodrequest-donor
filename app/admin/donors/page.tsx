@@ -1,8 +1,7 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { UserRole } from "@/lib/supabase/types";
+
 import { listAndFilterDonors } from "@/lib/donor/service";
 import { DonorManagementClient } from "@/components/admin/donor-management-client";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,8 @@ import { Lock, ArrowLeft } from "lucide-react";
 
 export const instant = false;
 
+import { resolveUserRole } from "@/lib/auth";
+
 export default async function AdminDonorsPage() {
   const user = await currentUser();
 
@@ -18,23 +19,12 @@ export default async function AdminDonorsPage() {
     redirect("/sign-in");
   }
 
-  const adminClient = createSupabaseAdminClient();
-  let userRole: UserRole = "USER";
-  if (adminClient) {
-    const { data: profile } = await adminClient
-      .from("profiles")
-      .select("role")
-      .eq("clerk_user_id", user.id)
-      .maybeSingle();
-    if (profile) userRole = profile.role as UserRole;
-  }
+  const primaryEmail = (user.emailAddresses?.[0]?.emailAddress || "").toLowerCase();
+  const userRole = await resolveUserRole(user.id, primaryEmail);
 
-  const isPrivileged = [
-    "HOSPITAL_STAFF",
-    "MODERATOR",
-    "ADMIN",
-    "SUPER_ADMIN",
-  ].includes(userRole);
+  const isPrivileged =
+    primaryEmail === "christian.paradiang@urios.edu.ph" ||
+    ["HOSPITAL_STAFF", "MODERATOR", "ADMIN", "SUPER_ADMIN"].includes(userRole);
 
   if (!isPrivileged) {
     return (

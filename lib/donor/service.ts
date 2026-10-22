@@ -53,7 +53,7 @@ export async function getOrCreateUserProfile(clerkUserId: string, email: string,
     .from("profiles")
     .select("*")
     .eq("clerk_user_id", clerkUserId)
-    .single();
+    .maybeSingle();
 
   if (existing && !selectError) {
     return existing as Profile;
@@ -90,7 +90,7 @@ export async function getDonorProfile(clerkUserId: string): Promise<FormattedDon
     .from("profiles")
     .select("*")
     .eq("clerk_user_id", clerkUserId)
-    .single();
+    .maybeSingle();
 
   if (!profile) return null;
 
@@ -99,7 +99,7 @@ export async function getDonorProfile(clerkUserId: string): Promise<FormattedDon
     .from("donor_profiles")
     .select("*")
     .eq("profile_id", profile.id)
-    .single();
+    .maybeSingle();
 
   if (!donor) return null;
 

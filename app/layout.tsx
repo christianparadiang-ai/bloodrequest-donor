@@ -63,14 +63,8 @@ export default function RootLayout({
                   <Link href="/donor/benefits" className="hover:text-foreground transition-colors">
                     Recognition & Honors
                   </Link>
-                  <Link href="/admin/reports" className="hover:text-foreground transition-colors">
-                    Reports
-                  </Link>
                   <Link href="/dashboard" className="hover:text-foreground transition-colors">
                     Dashboard
-                  </Link>
-                  <Link href="/admin" className="hover:text-foreground transition-colors">
-                    Admin
                   </Link>
                 </nav>
               </div>
