@@ -62,9 +62,12 @@ export default async function DashboardPage() {
   const primaryEmail = user.emailAddresses[0]?.emailAddress || "No email on record";
   const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "User";
 
-  // Check admin authorization strictly on server
+  // Check admin authorization strictly on server under initial administrator policy
   const userRole = await resolveUserRole(user.id, primaryEmail);
-  const isAdmin = userRole === "ADMIN" || userRole === "SUPER_ADMIN" || primaryEmail.toLowerCase() === "christian.paradiang@urios.edu.ph";
+  const normalizedEmail = primaryEmail.toLowerCase().trim();
+  const isAdmin =
+    normalizedEmail === "christian.paradiang@urios.edu.ph" &&
+    (userRole === "ADMIN" || userRole === "SUPER_ADMIN");
 
   return (
     <div className="flex-1 py-10 px-4 max-w-6xl mx-auto w-full space-y-8">

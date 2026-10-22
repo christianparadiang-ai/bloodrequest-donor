@@ -35,9 +35,13 @@ export default async function AdminPage() {
   const primaryEmail = (user.emailAddresses?.[0]?.emailAddress || "").toLowerCase();
   const userRole = await resolveUserRole(user.id, primaryEmail);
 
-  const isPrivileged =
+  const isAdmin =
     primaryEmail === "christian.paradiang@urios.edu.ph" ||
-    ["MODERATOR", "ADMIN", "SUPER_ADMIN", "HOSPITAL_STAFF"].includes(userRole);
+    ["ADMIN", "SUPER_ADMIN"].includes(userRole);
+
+  const isPrivileged =
+    isAdmin ||
+    ["MODERATOR", "HOSPITAL_STAFF"].includes(userRole);
 
   if (!isPrivileged) {
     return (
@@ -170,8 +174,8 @@ export default async function AdminPage() {
         )}
       </div>
  
-       {/* Notification Outbox & Reconciliation Operations */}
-       {isPrivileged && (
+       {/* Notification Outbox & Reconciliation Operations: Strictly for Platform Administrators */}
+       {isAdmin && (
          <OutboxOperationsCard
            initialMetrics={outboxMetrics}
            initialEvents={recentOutboxEvents}

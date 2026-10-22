@@ -22,11 +22,10 @@ export function AuthNav() {
     const primaryEmail = (user.primaryEmailAddress?.emailAddress || "").toLowerCase();
     const role = (user.publicMetadata?.role as string) || "USER";
 
-    // Strictly authorize admin navigation visibility only for christian.paradiang@urios.edu.ph or verified ADMIN role
+    // Strictly authorize admin navigation visibility exclusively for christian.paradiang@urios.edu.ph with ADMIN role
     const isAuthorizedAdmin =
-      primaryEmail === INITIAL_ADMIN_EMAIL ||
-      role === "ADMIN" ||
-      role === "SUPER_ADMIN";
+      primaryEmail === INITIAL_ADMIN_EMAIL &&
+      (role === "ADMIN" || role === "SUPER_ADMIN");
 
     return (
       <div className="flex items-center gap-2.5">
