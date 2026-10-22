@@ -142,7 +142,9 @@ export async function reviewBloodRequestAction(
       };
     }
 
-    const result = await reviewBloodRequest(requestId, user.id, payload);
+    const { extractUserEmail } = await import("@/lib/auth");
+    const email = extractUserEmail(user);
+    const result = await reviewBloodRequest(requestId, user.id, payload, email);
 
     if (!result.success || !result.request) {
       return { success: false, error: result.error || "Failed to complete review operation." };

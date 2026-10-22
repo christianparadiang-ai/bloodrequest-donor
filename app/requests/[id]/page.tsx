@@ -27,7 +27,7 @@ import {
   ShieldCheck,
   Calendar,
 } from "lucide-react";
-import { resolveUserRole } from "@/lib/auth";
+import { resolveUserRole, extractUserEmail } from "@/lib/auth";
 
 interface RequestDetailsPageProps {
   params: Promise<{ id: string }>;
@@ -39,8 +39,8 @@ export default async function RequestDetailsPage({ params }: RequestDetailsPageP
 
   let viewerRole: UserRole = "USER";
   if (user) {
-    const primaryEmail = (user.emailAddresses?.[0]?.emailAddress || "").toLowerCase();
-    viewerRole = await resolveUserRole(user.id, primaryEmail);
+    const email = extractUserEmail(user);
+    viewerRole = await resolveUserRole(user.id, email);
   }
 
   const { request, authorized, error } = await getBloodRequestById(id, user?.id);

@@ -76,20 +76,34 @@ export async function updatePointsConfigAction(params: {
     const admin = createSupabaseAdminClient();
     if (!admin) return { success: false, error: "Database client unavailable." };
 
-    const { data: profile } = await admin
+    const { extractUserEmail, INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_CLERK_ID } = await import("@/lib/auth");
+    const email = extractUserEmail(user) || "";
+
+    const isAuthorizedAdmin =
+      email === INITIAL_ADMIN_EMAIL.toLowerCase() ||
+      user.id === INITIAL_ADMIN_CLERK_ID;
+
+    let { data: profile } = await admin
       .from("profiles")
-      .select("id, role")
+      .select("id, role, email, clerk_user_id")
       .eq("clerk_user_id", user.id)
       .maybeSingle();
 
-    const verifiedAdminEmailObj = user.emailAddresses?.find(
-      (e) => e.verification?.status === "verified" && e.emailAddress.toLowerCase() === "christian.paradiang@urios.edu.ph"
-    );
-    const primaryEmail = (user.emailAddresses?.[0]?.emailAddress || "").toLowerCase();
+    if (!profile && email) {
+      const { data: profileByEmail } = await admin
+        .from("profiles")
+        .select("id, role, email, clerk_user_id")
+        .ilike("email", email)
+        .maybeSingle();
 
-    const isAuthorizedAdmin =
-      (user.id === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU" || Boolean(verifiedAdminEmailObj)) &&
-      (primaryEmail === "christian.paradiang@urios.edu.ph" || user.id === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU");
+      if (profileByEmail) {
+        profile = profileByEmail;
+        await admin
+          .from("profiles")
+          .update({ clerk_user_id: user.id, updated_at: new Date().toISOString() })
+          .eq("id", profileByEmail.id);
+      }
+    }
 
     if (!isAuthorizedAdmin || !profile) {
       return { success: false, error: "UNAUTHORIZED: Only the authorized administrator can modify points configuration." };

@@ -625,23 +625,43 @@ export async function cancelBloodRequest(
 export async function reviewBloodRequest(
   requestId: string,
   reviewerClerkUserId: string,
-  payload: unknown
+  payload: unknown,
+  reviewerEmail?: string | null
 ): Promise<{ success: boolean; request?: FormattedBloodRequest; error?: string }> {
   try {
     const admin = createSupabaseAdminClient();
     if (!admin) return { success: false, error: "Database configuration unavailable." };
 
-    const { data: reviewerProfile } = await admin
+    let { data: reviewerProfile } = await admin
       .from("profiles")
       .select("*")
       .eq("clerk_user_id", reviewerClerkUserId)
-      .single();
+      .maybeSingle();
+
+    if (!reviewerProfile && reviewerEmail) {
+      const { data: profileByEmail } = await admin
+        .from("profiles")
+        .select("*")
+        .ilike("email", reviewerEmail.toLowerCase().trim())
+        .maybeSingle();
+
+      if (profileByEmail) {
+        reviewerProfile = profileByEmail;
+        await admin
+          .from("profiles")
+          .update({
+            clerk_user_id: reviewerClerkUserId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", profileByEmail.id);
+      }
+    }
 
     if (!reviewerProfile) {
       return { success: false, error: "UNAUTHORIZED: Reviewer profile not found." };
     }
 
-    const role = reviewerProfile.role as UserRole;
+    const role = await resolveUserRole(reviewerClerkUserId, reviewerEmail || reviewerProfile.email);
     if (!PRIVILEGED_ROLES.includes(role)) {
       return {
         success: false,

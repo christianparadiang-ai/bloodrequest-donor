@@ -7,7 +7,7 @@ import { UserRole } from "@/lib/supabase/types";
 import { getOutboxMetrics, getRecentOutboxEvents } from "./service";
 import { processOutboxBatch } from "./worker";
 import { reconcilePlatformState } from "./reconciliation";
-import { resolveUserRole } from "@/lib/auth";
+import { resolveUserRole, extractUserEmail } from "@/lib/auth";
 import {
   FormattedOutboxEvent,
   OutboxMetrics,
@@ -33,8 +33,8 @@ async function assertPrivilegedStaff(): Promise<{
     return { authorized: false, error: "UNAUTHORIZED: Sign in required." };
   }
 
-  const primaryEmail = (user.emailAddresses?.[0]?.emailAddress || "").toLowerCase();
-  const role = await resolveUserRole(user.id, primaryEmail);
+  const email = extractUserEmail(user);
+  const role = await resolveUserRole(user.id, email);
 
   if (!PRIVILEGED_ROLES.includes(role)) {
     return {

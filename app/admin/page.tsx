@@ -28,7 +28,7 @@ import {
   Radio,
 } from "lucide-react";
 
-import { resolveUserRole } from "@/lib/auth";
+import { resolveUserRole, extractUserEmail, INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_CLERK_ID } from "@/lib/auth";
 
 export default async function AdminPage() {
   const user = await currentUser();
@@ -37,16 +37,12 @@ export default async function AdminPage() {
     redirect("/sign-in");
   }
 
-  const verifiedAdminEmailObj = user.emailAddresses?.find(
-    (e) => e.verification?.status === "verified" && e.emailAddress.toLowerCase() === "christian.paradiang@urios.edu.ph"
-  );
-  const primaryEmail = (user.emailAddresses?.[0]?.emailAddress || "").toLowerCase();
-  const userRole = await resolveUserRole(user.id, primaryEmail);
+  const email = extractUserEmail(user) || "";
+  const userRole = await resolveUserRole(user.id, email);
 
   const isAdmin =
-    (primaryEmail === "christian.paradiang@urios.edu.ph" || user.id === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU") &&
-    (userRole === "ADMIN" || userRole === "SUPER_ADMIN") &&
-    Boolean(verifiedAdminEmailObj || user.id === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU");
+    (email === INITIAL_ADMIN_EMAIL.toLowerCase() || user.id === INITIAL_ADMIN_CLERK_ID) &&
+    (userRole === "ADMIN" || userRole === "SUPER_ADMIN");
 
   const isPrivileged =
     isAdmin ||
@@ -77,7 +73,7 @@ export default async function AdminPage() {
   }
 
   // 1. Fetch live review queue
-  const reviewQueueRes = await listReviewQueueBloodRequests(user.id, primaryEmail);
+  const reviewQueueRes = await listReviewQueueBloodRequests(user.id, email);
   const reviewQueue = reviewQueueRes.requests || [];
 
   // 2. Fetch platform overview metrics
@@ -160,7 +156,7 @@ export default async function AdminPage() {
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground mt-1">
-              Authorized Administrator: <span className="font-semibold text-foreground">{primaryEmail}</span>. Requisition review, donor points, hospital governance, and immutable audit logs.
+              Authorized Administrator: <span className="font-semibold text-foreground">{email}</span>. Requisition review, donor points, hospital governance, and immutable audit logs.
             </p>
           </div>
 
@@ -180,6 +176,17 @@ export default async function AdminPage() {
           </div>
         </div>
       </div>
+
+      {/* Operational & Medical Guardrail Notice */}
+      <Alert className="border-amber-200 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-950/20">
+        <ShieldCheck className="size-4 text-amber-600 dark:text-amber-400" />
+        <AlertTitle className="text-amber-900 dark:text-amber-200 font-semibold text-sm">
+          Operational Boundary & Non-Clinical Disclaimer
+        </AlertTitle>
+        <AlertDescription className="text-amber-800 dark:text-amber-300 text-xs">
+          Platform governance encompasses administrative intake verification, hospital accreditation records, points policy, and delivery infrastructure. All clinical suitability, medical eligibility determinations, blood typing cross-matches, and transfusion authorizations are performed strictly on-site by certified blood bank and hospital clinical staff.
+        </AlertDescription>
+      </Alert>
 
       {/* Live System Overview Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

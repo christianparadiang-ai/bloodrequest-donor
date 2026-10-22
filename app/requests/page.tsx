@@ -21,7 +21,7 @@ import {
   Radio,
 } from "lucide-react";
 
-import { resolveUserRole } from "@/lib/auth";
+import { resolveUserRole, extractUserEmail } from "@/lib/auth";
 import { UserRole } from "@/lib/supabase/types";
 
 export default async function BloodRequestsPage() {
@@ -29,8 +29,8 @@ export default async function BloodRequestsPage() {
 
   let userRole: UserRole = "USER";
   if (user) {
-    const primaryEmail = (user.emailAddresses?.[0]?.emailAddress || "").toLowerCase();
-    userRole = await resolveUserRole(user.id, primaryEmail);
+    const email = extractUserEmail(user);
+    userRole = await resolveUserRole(user.id, email);
   }
   const isPrivileged = ["ADMIN", "SUPER_ADMIN", "MODERATOR", "HOSPITAL_STAFF"].includes(userRole);
 

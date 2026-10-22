@@ -20,7 +20,7 @@ import {
   Compass,
 } from "lucide-react";
 
-import { resolveUserRole } from "@/lib/auth";
+import { resolveUserRole, extractUserEmail, INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_CLERK_ID } from "@/lib/auth";
 
 export const instant = false;
 
@@ -35,14 +35,14 @@ export default async function DashboardPage({
     redirect("/sign-in");
   }
 
-  const primaryEmail = user.emailAddresses[0]?.emailAddress || "No email on record";
+  const email = extractUserEmail(user) || "No email on record";
   const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim() || "User";
 
   // Check admin authorization strictly on server under initial administrator policy
-  const userRole = await resolveUserRole(user.id, primaryEmail);
-  const normalizedEmail = primaryEmail.toLowerCase().trim();
+  const userRole = await resolveUserRole(user.id, email);
+  const normalizedEmail = email.toLowerCase().trim();
   const isAdmin =
-    (normalizedEmail === "christian.paradiang@urios.edu.ph" || user.id === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU") &&
+    (normalizedEmail === INITIAL_ADMIN_EMAIL.toLowerCase() || user.id === INITIAL_ADMIN_CLERK_ID) &&
     (userRole === "ADMIN" || userRole === "SUPER_ADMIN");
 
   const resolvedParams = searchParams ? await searchParams : undefined;
@@ -151,7 +151,7 @@ export default async function DashboardPage({
             <Separator />
             <div>
               <p className="text-muted-foreground">Email</p>
-              <p className="font-medium text-foreground">{primaryEmail}</p>
+              <p className="font-medium text-foreground">{email}</p>
             </div>
           </CardContent>
         </Card>

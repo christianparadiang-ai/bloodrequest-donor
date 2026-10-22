@@ -15,7 +15,7 @@ import {
 
 export const instant = false;
 
-import { resolveUserRole } from "@/lib/auth";
+import { resolveUserRole, extractUserEmail, INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_CLERK_ID } from "@/lib/auth";
 
 export default async function AdminReportsPage() {
   const user = await currentUser();
@@ -24,11 +24,12 @@ export default async function AdminReportsPage() {
     redirect("/sign-in");
   }
 
-  const primaryEmail = (user.emailAddresses?.[0]?.emailAddress || "").toLowerCase();
-  const userRole = await resolveUserRole(user.id, primaryEmail);
+  const email = extractUserEmail(user) || "";
+  const userRole = await resolveUserRole(user.id, email);
 
   const isPrivileged =
-    primaryEmail === "christian.paradiang@urios.edu.ph" ||
+    email === INITIAL_ADMIN_EMAIL.toLowerCase() ||
+    user.id === INITIAL_ADMIN_CLERK_ID ||
     ["HOSPITAL_STAFF", "MODERATOR", "ADMIN", "SUPER_ADMIN"].includes(userRole);
 
   if (!isPrivileged) {

@@ -10,17 +10,17 @@ export function AuthNav() {
 
   // When Clerk is loaded and user is authenticated
   if (isLoaded && isSignedIn && user) {
+    const adminEmailPresent = user.emailAddresses?.some(
+      (e) => e.emailAddress.toLowerCase().trim() === "christian.paradiang@urios.edu.ph"
+    );
     const primaryEmail = (
       user.primaryEmailAddress?.emailAddress ||
       user.emailAddresses?.[0]?.emailAddress ||
       ""
     ).toLowerCase().trim();
-    const role = (user.publicMetadata?.role as string) || "USER";
-
     // Strictly check verified administrator identity to prevent ordinary users from seeing the Admin link
     const isAuthorizedAdmin =
-      (primaryEmail === "christian.paradiang@urios.edu.ph" || user.id === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU") &&
-      (role === "ADMIN" || role === "SUPER_ADMIN" || primaryEmail === "christian.paradiang@urios.edu.ph");
+      (primaryEmail === "christian.paradiang@urios.edu.ph" || adminEmailPresent || user.id === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU");
 
     return (
       <div className="flex items-center gap-2.5">
