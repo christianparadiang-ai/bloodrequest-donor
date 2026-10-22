@@ -31,6 +31,12 @@ const clerkHandler = clerkMiddleware(
 );
 
 export default async function middleware(req: NextRequest, ev: NextFetchEvent) {
+  // Public routes (landing page, request directory, legal pages) pass through immediately.
+  // This completely eliminates cross-domain dev handshake redirects on public pages.
+  if (!isProtectedRoute(req)) {
+    return NextResponse.next();
+  }
+
   try {
     return await clerkHandler(req, ev);
   } catch (error) {
