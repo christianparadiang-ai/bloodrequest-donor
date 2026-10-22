@@ -16,6 +16,7 @@ import {
 } from "@/lib/validations";
 import { logAuditEvent } from "@/lib/audit";
 import { getOrCreateUserProfile } from "@/lib/donor/service";
+import { resolveUserRole } from "@/lib/auth";
 
 // ============================================================================
 // PRIVACY & MASKING HELPERS
@@ -341,7 +342,8 @@ export async function getBloodRequestById(
 
     const req = record as BloodRequest;
     const isOwner = Boolean(viewerProfile && req.requester_id === viewerProfile.id);
-    const isPrivileged = Boolean(viewerProfile && PRIVILEGED_ROLES.includes(viewerProfile.role));
+    const userRole = clerkUserId ? await resolveUserRole(clerkUserId) : "USER";
+    const isPrivileged = PRIVILEGED_ROLES.includes(userRole) || Boolean(viewerProfile && PRIVILEGED_ROLES.includes(viewerProfile.role));
 
     // Access control checks:
     // Drafts are strictly private to owner and privileged staff
@@ -719,25 +721,17 @@ export async function reviewBloodRequest(
 
 /**
  * Lists requisitions in review queue (SUBMITTED or UNDER_REVIEW).
+ * Orders newest requisitions first so incoming requests appear immediately.
  */
 export async function listReviewQueueBloodRequests(
-  reviewerClerkUserId: string
+  reviewerClerkUserId: string,
+  reviewerEmail?: string | null
 ): Promise<{ success: boolean; requests: FormattedBloodRequest[]; error?: string }> {
   try {
     const admin = createSupabaseAdminClient();
     if (!admin) return { success: false, requests: [], error: "Database configuration unavailable." };
 
-    const { data: reviewerProfile } = await admin
-      .from("profiles")
-      .select("*")
-      .eq("clerk_user_id", reviewerClerkUserId)
-      .single();
-
-    if (!reviewerProfile) {
-      return { success: false, requests: [], error: "UNAUTHORIZED: Profile not found." };
-    }
-
-    const role = reviewerProfile.role as UserRole;
+    const role = await resolveUserRole(reviewerClerkUserId, reviewerEmail);
     if (!PRIVILEGED_ROLES.includes(role)) {
       return {
         success: false,
@@ -746,18 +740,43 @@ export async function listReviewQueueBloodRequests(
       };
     }
 
+    let reviewerProfileId: string | null = null;
+    const { data: reviewerProfile } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("clerk_user_id", reviewerClerkUserId)
+      .maybeSingle();
+
+    if (reviewerProfile) {
+      reviewerProfileId = reviewerProfile.id;
+    } else if (reviewerEmail) {
+      const { data: profileByEmail } = await admin
+        .from("profiles")
+        .select("id")
+        .eq("email", reviewerEmail.toLowerCase())
+        .maybeSingle();
+      if (profileByEmail) {
+        reviewerProfileId = profileByEmail.id;
+        // Self-heal clerk_user_id link
+        await admin
+          .from("profiles")
+          .update({ clerk_user_id: reviewerClerkUserId })
+          .eq("id", profileByEmail.id);
+      }
+    }
+
     const { data, error } = await admin
       .from("blood_requests")
       .select("*")
       .in("status", ["SUBMITTED", "UNDER_REVIEW"])
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: false });
 
     if (error) {
       return { success: false, requests: [], error: error.message };
     }
 
-    const formatted = (data as BloodRequest[] || []).map((r) =>
-      formatBloodRequestRecord(r, reviewerProfile.id)
+    const formatted = ((data as BloodRequest[]) || []).map((r) =>
+      formatBloodRequestRecord(r, reviewerProfileId)
     );
 
     return { success: true, requests: formatted };

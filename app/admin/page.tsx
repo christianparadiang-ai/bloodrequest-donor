@@ -2,6 +2,8 @@ import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 export const instant = false;
 import { listReviewQueueBloodRequests } from "@/lib/requests/service";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -71,7 +73,7 @@ export default async function AdminPage() {
     );
   }
 
-  const reviewQueueRes = await listReviewQueueBloodRequests(user.id);
+  const reviewQueueRes = await listReviewQueueBloodRequests(user.id, primaryEmail);
   const reviewQueue = reviewQueueRes.requests || [];
 
   const outboxMetrics = isPrivileged

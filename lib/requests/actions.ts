@@ -44,6 +44,7 @@ export async function createBloodRequestAction(
     revalidatePath("/requests");
     revalidatePath("/requests/new");
     revalidatePath("/dashboard");
+    revalidatePath("/admin");
 
     return { success: true, data: result.request };
   } catch (err: unknown) {
@@ -78,6 +79,7 @@ export async function submitDraftBloodRequestAction(
     revalidatePath("/requests");
     revalidatePath(`/requests/${requestId}`);
     revalidatePath("/dashboard");
+    revalidatePath("/admin");
 
     return { success: true, data: result.request };
   } catch (err: unknown) {
@@ -113,6 +115,7 @@ export async function cancelBloodRequestAction(
     revalidatePath("/requests");
     revalidatePath(`/requests/${requestId}`);
     revalidatePath("/dashboard");
+    revalidatePath("/admin");
 
     return { success: true, data: result.request };
   } catch (err: unknown) {

@@ -6,7 +6,6 @@ import { getBloodRequestById } from "@/lib/requests/service";
 import { getPotentialMatchesForRequest } from "@/lib/matching/service";
 import { getRequestCommitments } from "@/lib/commitments/service";
 import { getRequestFulfillmentSummary } from "@/lib/donations/service";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { UserRole, PotentialDonorMatch, FormattedDonorCommitment } from "@/lib/supabase/types";
 import { getStatusBadge, getUrgencyBadge } from "@/components/requests/request-card";
 import { RequestActionsClient } from "@/components/requests/request-actions-client";
@@ -28,6 +27,7 @@ import {
   ShieldCheck,
   Calendar,
 } from "lucide-react";
+import { resolveUserRole } from "@/lib/auth";
 
 interface RequestDetailsPageProps {
   params: Promise<{ id: string }>;
@@ -39,15 +39,8 @@ export default async function RequestDetailsPage({ params }: RequestDetailsPageP
 
   let viewerRole: UserRole = "USER";
   if (user) {
-    const adminClient = createSupabaseAdminClient();
-    if (adminClient) {
-      const { data: profile } = await adminClient
-        .from("profiles")
-        .select("role")
-        .eq("clerk_user_id", user.id)
-        .single();
-      if (profile) viewerRole = profile.role as UserRole;
-    }
+    const primaryEmail = (user.emailAddresses?.[0]?.emailAddress || "").toLowerCase();
+    viewerRole = await resolveUserRole(user.id, primaryEmail);
   }
 
   const { request, authorized, error } = await getBloodRequestById(id, user?.id);
