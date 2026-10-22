@@ -7,6 +7,7 @@ import { UserRole } from "@/lib/supabase/types";
 import { getOutboxMetrics, getRecentOutboxEvents } from "./service";
 import { processOutboxBatch } from "./worker";
 import { reconcilePlatformState } from "./reconciliation";
+import { resolveUserRole } from "@/lib/auth";
 import {
   FormattedOutboxEvent,
   OutboxMetrics,
@@ -32,25 +33,28 @@ async function assertPrivilegedStaff(): Promise<{
     return { authorized: false, error: "UNAUTHORIZED: Sign in required." };
   }
 
-  const admin = createSupabaseAdminClient();
-  if (!admin) {
-    return { authorized: false, error: "Database configuration error." };
-  }
+  const primaryEmail = (user.emailAddresses?.[0]?.emailAddress || "").toLowerCase();
+  const role = await resolveUserRole(user.id, primaryEmail);
 
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("id, role")
-    .eq("clerk_user_id", user.id)
-    .single();
-
-  if (!profile || !PRIVILEGED_ROLES.includes(profile.role as UserRole)) {
+  if (!PRIVILEGED_ROLES.includes(role)) {
     return {
       authorized: false,
       error: "FORBIDDEN: Administrative or staff role required for outbox management.",
     };
   }
 
-  return { authorized: true, profileId: profile.id, role: profile.role as UserRole };
+  const admin = createSupabaseAdminClient();
+  let profileId: string | undefined;
+  if (admin) {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("clerk_user_id", user.id)
+      .maybeSingle();
+    profileId = profile?.id;
+  }
+
+  return { authorized: true, profileId, role };
 }
 
 /**

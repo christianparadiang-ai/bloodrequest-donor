@@ -4,7 +4,8 @@ import { Inter } from "next/font/google";
 import Link from "next/link";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Badge } from "@/components/ui/badge";
-import { Droplet, ShieldAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Droplet, ShieldAlert, User } from "lucide-react";
 import { AuthNav } from "@/components/auth-nav";
 import "./globals.css";
 
@@ -63,14 +64,27 @@ export default function RootLayout({
                   <Link href="/donor/benefits" className="hover:text-foreground transition-colors">
                     Recognition & Honors
                   </Link>
-                  <Link href="/dashboard" className="hover:text-foreground transition-colors">
-                    Dashboard
-                  </Link>
                 </nav>
               </div>
 
               {/* Authentication & User Controls */}
-              <Suspense fallback={<div className="size-8 rounded-full bg-muted animate-pulse" />}>
+              <Suspense
+                fallback={
+                  <div className="flex items-center gap-2">
+                    <Link href="/sign-in">
+                      <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground text-xs font-medium">
+                        <User className="size-3.5" />
+                        Sign In
+                      </Button>
+                    </Link>
+                    <Link href="/sign-up">
+                      <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-4 text-xs shadow-sm">
+                        Sign Up
+                      </Button>
+                    </Link>
+                  </div>
+                }
+              >
                 <AuthNav />
               </Suspense>
             </div>

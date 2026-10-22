@@ -32,12 +32,16 @@ export default async function AdminPage() {
     redirect("/sign-in");
   }
 
+  const verifiedAdminEmailObj = user.emailAddresses?.find(
+    (e) => e.verification?.status === "verified" && e.emailAddress.toLowerCase() === "christian.paradiang@urios.edu.ph"
+  );
   const primaryEmail = (user.emailAddresses?.[0]?.emailAddress || "").toLowerCase();
   const userRole = await resolveUserRole(user.id, primaryEmail);
 
   const isAdmin =
-    primaryEmail === "christian.paradiang@urios.edu.ph" ||
-    ["ADMIN", "SUPER_ADMIN"].includes(userRole);
+    (primaryEmail === "christian.paradiang@urios.edu.ph" || user.id === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU") &&
+    (userRole === "ADMIN" || userRole === "SUPER_ADMIN") &&
+    Boolean(verifiedAdminEmailObj || user.id === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU");
 
   const isPrivileged =
     isAdmin ||

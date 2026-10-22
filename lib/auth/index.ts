@@ -30,11 +30,11 @@ export async function getAuthenticatedUser() {
  * Defends against client-side metadata tampering.
  */
 export async function resolveUserRole(clerkUserId: string, email?: string | null): Promise<UserRole> {
-  // If the verified email or resolved Clerk ID matches the designated initial admin, they have ADMIN role
-  if (
+  const isTargetAdmin =
     clerkUserId === INITIAL_ADMIN_CLERK_ID ||
-    (email && email.toLowerCase() === INITIAL_ADMIN_EMAIL.toLowerCase())
-  ) {
+    (email && email.toLowerCase() === INITIAL_ADMIN_EMAIL.toLowerCase());
+
+  if (isTargetAdmin) {
     return "ADMIN";
   }
 
@@ -49,7 +49,12 @@ export async function resolveUserRole(clerkUserId: string, email?: string | null
       .maybeSingle();
 
     if (profile?.role) {
-      return profile.role as UserRole;
+      const dbRole = profile.role as UserRole;
+      // Strictly prevent any account other than christian.paradiang@urios.edu.ph from obtaining ADMIN or SUPER_ADMIN
+      if (dbRole === "ADMIN" || dbRole === "SUPER_ADMIN") {
+        return "USER";
+      }
+      return dbRole;
     }
   } catch (err) {
     console.error("Failed to query user role from database:", err);
@@ -62,13 +67,9 @@ export async function resolveUserRole(clerkUserId: string, email?: string | null
  * Checks if a user is the authorized administrator by email or Clerk ID.
  */
 export function isAuthorizedAdminIdentity(email?: string | null, clerkUserId?: string | null): boolean {
-  if (email && email.toLowerCase() === INITIAL_ADMIN_EMAIL.toLowerCase()) {
-    return true;
-  }
-  if (clerkUserId && clerkUserId === INITIAL_ADMIN_CLERK_ID) {
-    return true;
-  }
-  return false;
+  const matchesEmail = Boolean(email && email.toLowerCase() === INITIAL_ADMIN_EMAIL.toLowerCase());
+  const matchesClerkId = Boolean(clerkUserId && clerkUserId === INITIAL_ADMIN_CLERK_ID);
+  return matchesEmail || matchesClerkId;
 }
 
 /**
@@ -98,8 +99,8 @@ export async function requireUserWithRole(allowedRoles: UserRole[]): Promise<{
 
 /**
  * Strict server-side authorization guard for administrative features.
- * Ensures only authorized administrator (e.g. christian.paradiang@urios.edu.ph)
- * or verified ADMIN/SUPER_ADMIN roles can execute privileged operations.
+ * Ensures only authorized administrator (christian.paradiang@urios.edu.ph)
+ * with verified Clerk identity and trusted server-side ADMIN role can execute privileged operations.
  */
 export async function requireAdminUser(): Promise<{
   userId: string;
@@ -112,15 +113,18 @@ export async function requireAdminUser(): Promise<{
     throw new Error("UNAUTHORIZED: Administrator session required.");
   }
 
-  const primaryEmail = user.emailAddresses?.[0]?.emailAddress || "";
-  const role = await resolveUserRole(user.id, primaryEmail);
+  const verifiedEmailObj = user.emailAddresses?.find(
+    (e) => e.verification?.status === "verified" && e.emailAddress.toLowerCase() === INITIAL_ADMIN_EMAIL.toLowerCase()
+  );
+  const primaryEmail = (user.emailAddresses?.[0]?.emailAddress || "").toLowerCase();
 
-  const isAdmin =
-    role === "ADMIN" ||
-    role === "SUPER_ADMIN" ||
-    isAuthorizedAdminIdentity(primaryEmail, user.id);
+  const isExactAdminIdentity =
+    (user.id === INITIAL_ADMIN_CLERK_ID || Boolean(verifiedEmailObj)) &&
+    primaryEmail === INITIAL_ADMIN_EMAIL;
 
-  if (!isAdmin) {
+  const role = await resolveUserRole(user.id, verifiedEmailObj ? primaryEmail : null);
+
+  if (!isExactAdminIdentity || (role !== "ADMIN" && role !== "SUPER_ADMIN")) {
     throw new Error("FORBIDDEN: Access restricted to authorized system administrators.");
   }
 

@@ -8,7 +8,6 @@ import {
 } from "./service";
 import { PeriodType } from "./dates";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { UserRole } from "@/lib/supabase/types";
 import { revalidatePath } from "next/cache";
 
 export async function fetchAnalyticsReportAction(params: {
@@ -83,13 +82,17 @@ export async function updatePointsConfigAction(params: {
       .eq("clerk_user_id", user.id)
       .maybeSingle();
 
+    const verifiedAdminEmailObj = user.emailAddresses?.find(
+      (e) => e.verification?.status === "verified" && e.emailAddress.toLowerCase() === "christian.paradiang@urios.edu.ph"
+    );
+    const primaryEmail = (user.emailAddresses?.[0]?.emailAddress || "").toLowerCase();
+
     const isAuthorizedAdmin =
-      user.id === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU" ||
-      user.emailAddresses?.[0]?.emailAddress?.toLowerCase() === "christian.paradiang@urios.edu.ph" ||
-      (profile && ["ADMIN", "SUPER_ADMIN"].includes(profile.role as UserRole));
+      (user.id === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU" || Boolean(verifiedAdminEmailObj)) &&
+      (primaryEmail === "christian.paradiang@urios.edu.ph" || user.id === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU");
 
     if (!isAuthorizedAdmin || !profile) {
-      return { success: false, error: "UNAUTHORIZED: Only administrators can modify points configuration." };
+      return { success: false, error: "UNAUTHORIZED: Only the authorized administrator can modify points configuration." };
     }
 
     const { error } = await admin

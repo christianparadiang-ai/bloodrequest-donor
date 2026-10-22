@@ -196,7 +196,7 @@ export default function HomePage() {
               <div className="size-8 rounded bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
                 04
               </div>
-              <h4 className="font-semibold text-sm">Admin & Audit</h4>
+              <h4 className="font-semibold text-sm">Governance & Audit</h4>
               <p className="text-xs text-muted-foreground">
                 Platform governance, hospital organization onboarding, immutable clinical audit logs.
               </p>
