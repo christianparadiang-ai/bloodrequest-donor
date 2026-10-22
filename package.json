@@ -16,6 +16,7 @@
     "test:milestone7": "npx tsx scripts/test-milestone7.mjs",
     "test:milestone8": "npx tsx scripts/test-milestone8.mjs",
     "test:points-reports": "npx tsx scripts/test-points-and-reports.mjs",
+    "test:admin": "npx --prefer-offline tsx scripts/test-admin-authorization-invariants.mjs",
     "test:pre-deploy": "npx tsx scripts/test-pre-deployment.mjs",
     "test:e2e": "npx tsx scripts/test-e2e-roles-and-readiness.mjs",
     "workers:run": "node scripts/run-workers.mjs",

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { createClient } from "@supabase/supabase-js";
 
 console.log("================================================================================");
 console.log("  LIFE DROP: ADMIN ROLE, AUTHORIZATION & DASHBOARD VERIFICATION SUITE");
@@ -30,6 +31,7 @@ function loadEnvFile(filePath) {
   }
 }
 
+loadEnvFile(path.resolve(".env.staging"));
 loadEnvFile(path.resolve(".env.local"));
 
 console.log("[Suite 1] Static Code Architecture & Invariant Guards...");
@@ -170,44 +172,42 @@ console.log("\n[Suite 7] Live Staging Database & Profile Synchronization Audit..
   assert.ok(supabaseUrl, "NEXT_PUBLIC_SUPABASE_URL must be configured");
   assert.ok(serviceKey, "SUPABASE_SERVICE_ROLE_KEY must be configured");
 
-  // 1. Verify exact single admin profile
-  const adminProfileRes = await fetch(`${supabaseUrl}/rest/v1/profiles?email=eq.${encodeURIComponent(TARGET_ADMIN_EMAIL)}&select=*`, {
-    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+  if (typeof globalThis.WebSocket === "undefined") {
+    globalThis.WebSocket = class {};
+  }
+  const supabase = createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
-  const adminProfiles = await adminProfileRes.json();
-  assert.equal(adminProfiles.length, 1, `Expected exactly 1 profile for ${TARGET_ADMIN_EMAIL}`);
+
+  // 1. Verify exact single admin profile
+  const { data: adminProfiles, error: profileErr } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("email", TARGET_ADMIN_EMAIL);
+
+  assert.ok(!profileErr, `Profile query error: ${profileErr?.message}`);
+  assert.equal(adminProfiles?.length, 1, `Expected exactly 1 profile for ${TARGET_ADMIN_EMAIL}`);
   assert.equal(adminProfiles[0].role, "ADMIN", "Profile role in Supabase MUST be ADMIN");
   assert.equal(adminProfiles[0].clerk_user_id, TARGET_ADMIN_CLERK_ID, "Profile clerk_user_id MUST match target Clerk ID");
   console.log(`  ✓ PASS: Supabase profile verified: id=${adminProfiles[0].id}, role=ADMIN, clerk_user_id=${TARGET_ADMIN_CLERK_ID}`);
 
   // 2. Verify all live admin queries work without error
   const [bReqRes, donorRes, donRes, ptsRes, outboxRes] = await Promise.all([
-    fetch(`${supabaseUrl}/rest/v1/blood_requests?select=id,status&limit=5`, {
-      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-    }),
-    fetch(`${supabaseUrl}/rest/v1/donor_profiles?select=id&limit=5`, {
-      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-    }),
-    fetch(`${supabaseUrl}/rest/v1/donations?select=id&limit=5`, {
-      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-    }),
-    fetch(`${supabaseUrl}/rest/v1/points_config?select=*`, {
-      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-    }),
-    fetch(`${supabaseUrl}/rest/v1/notification_events?select=id,status&limit=5`, {
-      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
-    }),
+    supabase.from("blood_requests").select("id,status").limit(5),
+    supabase.from("donor_profiles").select("id").limit(5),
+    supabase.from("donations").select("id").limit(5),
+    supabase.from("points_config").select("*"),
+    supabase.from("notification_events").select("id,status").limit(5),
   ]);
 
-  assert.equal(bReqRes.status, 200, "blood_requests query must succeed");
-  assert.equal(donorRes.status, 200, "donor_profiles query must succeed");
-  assert.equal(donRes.status, 200, "donations query must succeed");
-  assert.equal(ptsRes.status, 200, "points_config query must succeed");
-  assert.equal(outboxRes.status, 200, "notification_events query must succeed");
+  assert.ok(!bReqRes.error, `blood_requests query failed: ${bReqRes.error?.message}`);
+  assert.ok(!donorRes.error, `donor_profiles query failed: ${donorRes.error?.message}`);
+  assert.ok(!donRes.error, `donations query failed: ${donRes.error?.message}`);
+  assert.ok(!ptsRes.error, `points_config query failed: ${ptsRes.error?.message}`);
+  assert.ok(!outboxRes.error, `notification_events query failed: ${outboxRes.error?.message}`);
 
-  const ptsConfig = await ptsRes.json();
-  assert.ok(ptsConfig.length >= 4, "points_config must have tier rows");
-  console.log(`  ✓ PASS: All live administrative table queries return HTTP 200 OK (${ptsConfig.length} points config rules)`);
+  assert.ok(ptsRes.data.length >= 4, "points_config must have tier rows");
+  console.log(`  ✓ PASS: All live administrative table queries return HTTP 200 OK (${ptsRes.data.length} points config rules)`);
 }
 
 console.log("\n[Suite 8] Runtime Role Resolution Function Testing...");
@@ -249,9 +249,48 @@ console.log("\n[Suite 8] Runtime Role Resolution Function Testing...");
   };
   assert.equal(extractUserEmail(testUser2), "primary@example.com", "extractUserEmail must resolve primary email");
 
-  console.log("  ✓ PASS: resolveUserRole & extractUserEmail verified across admin and ordinary user personas");
+  // 4. Non-matching and adversarial email tests
+  const spoofedEmails = [
+    "christian.paradiang@gmail.com",
+    "christian.paradiang@urios.edu",
+    "not.christian.paradiang@urios.edu.ph",
+    "christian.paradiang@urios.edu.ph.attacker.com",
+    "christian.paradiang+admin@urios.edu.ph",
+  ];
+  for (const spoofed of spoofedEmails) {
+    const spoofedRole = await resolveUserRole("user_spoofed_attempt", spoofed);
+    assert.equal(spoofedRole, "USER", `Spoofed email '${spoofed}' MUST resolve to USER`);
+  }
+
+  console.log("  ✓ PASS: resolveUserRole & extractUserEmail verified across admin, ordinary users, and spoofed emails");
+}
+
+console.log("\n[Suite 9] Adversarial Security & Unauthorized Operations Shielding...");
+{
+  const { isAuthorizedAdminIdentity } = await import("../lib/auth/index.ts");
+
+  // 1. Identity predicate defenses
+  assert.equal(isAuthorizedAdminIdentity("attacker@evil.com", "user_attacker"), false);
+  assert.equal(isAuthorizedAdminIdentity("christian.paradiang@urios.edu.ph", "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU"), true);
+  assert.equal(isAuthorizedAdminIdentity("christian.paradiang@urios.edu.ph", null), true);
+  assert.equal(isAuthorizedAdminIdentity(null, "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU"), true);
+  assert.equal(isAuthorizedAdminIdentity("attacker@urios.edu.ph", null), false);
+
+  // 2. Static verification of PointsConfigCard integration
+  const adminPageContent = fs.readFileSync(path.resolve("app/admin/page.tsx"), "utf-8");
+  assert.ok(adminPageContent.includes("PointsConfigCard"), "Admin page must render PointsConfigCard");
+
+  // 3. Static verification of requireAdminUser in updatePointsConfigAction
+  const reportsActionsContent = fs.readFileSync(path.resolve("lib/reports/actions.ts"), "utf-8");
+  assert.ok(reportsActionsContent.includes("requireAdminUser"), "updatePointsConfigAction must guard with requireAdminUser");
+
+  // 4. Static verification of resolveUserRole in reports service
+  const reportsServiceContent = fs.readFileSync(path.resolve("lib/reports/service.ts"), "utf-8");
+  assert.ok(reportsServiceContent.includes("resolveUserRole"), "reports service must verify access with resolveUserRole");
+
+  console.log("  ✓ PASS: Adversarial identity spoofing, untrusted elevation, and server action guards verified");
 }
 
 console.log("\n================================================================================");
-console.log("  🎉 ALL 8 SUITES PASSED SUCCESSFULLY!");
+console.log("  🎉 ALL 9 SUITES PASSED SUCCESSFULLY!");
 console.log("================================================================================\n");

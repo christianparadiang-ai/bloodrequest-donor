@@ -179,18 +179,35 @@ async function runEndToEndAudit() {
     // ------------------------------------------------------------------------
     console.log("\n[Phase 1] Initializing 5 distinct test actor personas...");
 
+    async function retryOp(fn, retries = 3) {
+      for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+          const res = await fn();
+          if (!res.error || !res.error.message?.includes("fetch failed")) {
+            return res;
+          }
+        } catch (err) {
+          if (attempt === retries) throw err;
+        }
+        await new Promise((r) => setTimeout(r, 600 * attempt));
+      }
+      return await fn();
+    }
+
     for (const [key, actor] of Object.entries(actors)) {
-      const { data: prof, error: pErr } = await admin
-        .from("profiles")
-        .insert({
-          clerk_user_id: actor.clerkId,
-          email: actor.email,
-          full_name: actor.name,
-          role: actor.role,
-          hospital_affiliation: actor.hospital || null,
-        })
-        .select("id")
-        .single();
+      const { data: prof, error: pErr } = await retryOp(() =>
+        admin
+          .from("profiles")
+          .insert({
+            clerk_user_id: actor.clerkId,
+            email: actor.email,
+            full_name: actor.name,
+            role: actor.role,
+            hospital_affiliation: actor.hospital || null,
+          })
+          .select("id")
+          .single()
+      );
 
       if (pErr) throw new Error(`Failed to create persona ${key}: ${pErr.message}`);
       actor.profileId = prof.id;

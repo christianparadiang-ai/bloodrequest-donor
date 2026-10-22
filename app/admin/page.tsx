@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { RequestCard } from "@/components/requests/request-card";
 import { OutboxOperationsCard } from "@/components/admin/outbox-operations-card";
+import { PointsConfigCard, PointsConfigItem } from "@/components/admin/points-config-card";
 import { getOutboxMetrics, getRecentOutboxEvents } from "@/lib/outbox/service";
 import { Button } from "@/components/ui/button";
 import {
@@ -81,21 +82,26 @@ export default async function AdminPage() {
   let totalDonorsCount = 0;
   let completedDonationsCount = 0;
   let pointsPerDonation = 100;
+  let pointsConfigItems: PointsConfigItem[] = [];
 
   try {
     const adminClient = createSupabaseAdminClient();
     if (adminClient) {
-      const [reqCount, donorCount, donCount, ptsConfig] = await Promise.all([
+      const [reqCount, donorCount, donCount, ptsConfigRes] = await Promise.all([
         adminClient.from("blood_requests").select("id", { count: "exact", head: true }).eq("status", "ACTIVE"),
         adminClient.from("donor_profiles").select("id", { count: "exact", head: true }),
         adminClient.from("donations").select("id", { count: "exact", head: true }).eq("status", "COMPLETED"),
-        adminClient.from("points_config").select("value").eq("key", "points_per_donation").maybeSingle(),
+        adminClient.from("points_config").select("key, value, description").order("key"),
       ]);
       activeRequestsCount = reqCount.count || 0;
       totalDonorsCount = donorCount.count || 0;
       completedDonationsCount = donCount.count || 0;
-      if (ptsConfig.data && typeof ptsConfig.data.value === "number") {
-        pointsPerDonation = ptsConfig.data.value;
+      if (ptsConfigRes.data) {
+        pointsConfigItems = ptsConfigRes.data as PointsConfigItem[];
+        const ppd = pointsConfigItems.find((p) => p.key === "points_per_donation");
+        if (ppd && typeof ppd.value === "number") {
+          pointsPerDonation = ppd.value;
+        }
       }
     }
   } catch (err) {
@@ -299,14 +305,16 @@ export default async function AdminPage() {
           </Card>
         )}
       </div>
- 
-       {/* Notification Outbox & Reconciliation Operations: Strictly for Platform Administrators */}
-       {isAdmin && (
-         <OutboxOperationsCard
-           initialMetrics={outboxMetrics}
-           initialEvents={recentOutboxEvents}
-         />
-       )}
+      {/* Points Configuration Policy & Outbox Operations: Strictly for Platform Administrators */}
+      {isAdmin && (
+        <>
+          <PointsConfigCard initialConfig={pointsConfigItems} />
+          <OutboxOperationsCard
+            initialMetrics={outboxMetrics}
+            initialEvents={recentOutboxEvents}
+          />
+        </>
+      )}
 
        {/* Governance Sections */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-border/60">

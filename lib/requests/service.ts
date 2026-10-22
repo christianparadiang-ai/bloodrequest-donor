@@ -838,6 +838,7 @@ export async function searchAndFilterBloodRequests(
     let viewerProfileId: string | null = null;
     let viewerRole: UserRole = "USER";
     if (viewerClerkUserId) {
+      viewerRole = await resolveUserRole(viewerClerkUserId);
       const { data: p } = await admin
         .from("profiles")
         .select("id, role")
@@ -845,7 +846,6 @@ export async function searchAndFilterBloodRequests(
         .maybeSingle();
       if (p) {
         viewerProfileId = p.id;
-        viewerRole = p.role as UserRole;
       }
     }
 

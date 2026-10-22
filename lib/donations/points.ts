@@ -1,5 +1,4 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { UserRole } from "@/lib/supabase/types";
 import { logAuditEvent } from "@/lib/audit";
 
 export const DEFAULT_POINTS_PER_DONATION = 100;
@@ -400,36 +399,66 @@ export async function adjustDonorPoints(params: {
   }
 
   // 1. Check admin caller
-  const { data: caller } = await admin
+  const INITIAL_ADMIN_CLERK_ID = "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU";
+  const INITIAL_ADMIN_EMAIL = "christian.paradiang@urios.edu.ph";
+
+  let { data: caller } = await admin
     .from("profiles")
-    .select("id, role")
+    .select("id, role, email")
     .eq("clerk_user_id", params.adminClerkUserId)
     .maybeSingle();
 
-  const isCallerAdmin =
-    params.adminClerkUserId === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU" ||
-    (caller && ["ADMIN", "SUPER_ADMIN", "MODERATOR"].includes(caller.role as UserRole));
+  if (!caller && params.adminClerkUserId === INITIAL_ADMIN_CLERK_ID) {
+    const { data: p } = await admin
+      .from("profiles")
+      .select("id, role, email")
+      .ilike("email", INITIAL_ADMIN_EMAIL)
+      .maybeSingle();
+    caller = p;
+  }
 
-  if (!isCallerAdmin || !caller) {
+  const isCallerAuthorized =
+    params.adminClerkUserId === INITIAL_ADMIN_CLERK_ID ||
+    (caller && (caller.email?.toLowerCase().trim() === INITIAL_ADMIN_EMAIL || ["ADMIN", "SUPER_ADMIN", "MODERATOR"].includes(caller.role as string)));
+
+  if (!isCallerAuthorized || !caller) {
     return { success: false, error: "UNAUTHORIZED: Only administrators can adjust donor points." };
   }
 
-  // 2. Resolve target donor profile
-  const { data: targetProfile } = await admin
-    .from("profiles")
-    .select("id")
-    .or(`id.eq.${params.donorProfileIdOrUserId},clerk_user_id.eq.${params.donorProfileIdOrUserId}`)
-    .maybeSingle();
+  // 2. Resolve target donor profile (handles donor_profiles.id, profiles.id, or clerk_user_id)
+  let targetProfileId: string | null = null;
+  let targetDpId: string | null = null;
 
-  if (!targetProfile) {
-    return { success: false, error: "Donor record not found." };
-  }
-
-  const { data: dp } = await admin
+  // First check if input is a donor_profiles.id
+  const { data: dpDirect } = await admin
     .from("donor_profiles")
-    .select("id")
-    .eq("profile_id", targetProfile.id)
+    .select("id, profile_id")
+    .eq("id", params.donorProfileIdOrUserId)
     .maybeSingle();
+
+  if (dpDirect) {
+    targetDpId = dpDirect.id;
+    targetProfileId = dpDirect.profile_id;
+  } else {
+    // Check profiles.id or clerk_user_id
+    const { data: targetProfile } = await admin
+      .from("profiles")
+      .select("id")
+      .or(`id.eq.${params.donorProfileIdOrUserId},clerk_user_id.eq.${params.donorProfileIdOrUserId}`)
+      .maybeSingle();
+
+    if (!targetProfile) {
+      return { success: false, error: "Donor record not found." };
+    }
+
+    targetProfileId = targetProfile.id;
+    const { data: dp } = await admin
+      .from("donor_profiles")
+      .select("id")
+      .eq("profile_id", targetProfile.id)
+      .maybeSingle();
+    targetDpId = dp?.id || null;
+  }
 
   const txType = params.transactionType || "MANUAL_ADJUSTMENT";
   const signedPoints =
@@ -438,8 +467,8 @@ export async function adjustDonorPoints(params: {
   const { data: inserted, error: insertErr } = await admin
     .from("donor_points_transactions")
     .insert({
-      donor_id: targetProfile.id,
-      donor_profile_id: dp?.id || null,
+      donor_id: targetProfileId,
+      donor_profile_id: targetDpId,
       points: signedPoints,
       transaction_type: txType,
       reason: params.reason,
@@ -458,7 +487,7 @@ export async function adjustDonorPoints(params: {
     targetTable: "donor_points_transactions",
     targetId: inserted.id,
     newState: {
-      donor_id: targetProfile.id,
+      donor_id: targetProfileId,
       points: params.points,
       reason: params.reason,
       transaction_type: txType,

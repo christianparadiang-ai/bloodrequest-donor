@@ -88,13 +88,13 @@ async function main() {
     console.log("  ℹ️ Clerk Webhook Secret: Deferred pending public staging domain deployment");
   }
 
-  async function fetchWithRetry(url, options = {}, retries = 3) {
+  async function fetchWithRetry(url, options = {}, retries = 6) {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         return await fetch(url, options);
       } catch (err) {
         if (attempt === retries) throw err;
-        await new Promise((r) => setTimeout(r, 600 * attempt));
+        await new Promise((r) => setTimeout(r, 1200 * attempt));
       }
     }
   }
@@ -248,7 +248,7 @@ async function main() {
 
     // Step 04: Prescription Upload to Private Storage
     const storagePath = `medical_prescriptions/${requestId}/v1_doc_${runId}.pdf`;
-    const uploadRes = await fetch(`${supabaseUrl}/storage/v1/object/${storagePath}`, {
+    const uploadRes = await fetchWithRetry(`${supabaseUrl}/storage/v1/object/${storagePath}`, {
       method: "POST",
       headers: {
         apikey: serviceKey,

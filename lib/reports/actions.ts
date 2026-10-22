@@ -24,8 +24,12 @@ export async function fetchAnalyticsReportAction(params: {
       return { success: false, error: "UNAUTHORIZED: Active session required." };
     }
 
+    const { extractUserEmail } = await import("@/lib/auth");
+    const email = extractUserEmail(user);
+
     return await getAnalyticsReport({
       clerkUserId: user.id,
+      email,
       ...params,
     });
   } catch (err: unknown) {
@@ -51,8 +55,12 @@ export async function exportCsvReportAction(params: {
       return { success: false, error: "UNAUTHORIZED: Active session required." };
     }
 
+    const { extractUserEmail } = await import("@/lib/auth");
+    const email = extractUserEmail(user);
+
     return await generateCsvExport({
       clerkUserId: user.id,
+      email,
       ...params,
     });
   } catch (err: unknown) {
@@ -68,45 +76,29 @@ export async function updatePointsConfigAction(params: {
   value: number;
 }) {
   try {
-    const user = await currentUser();
-    if (!user) {
-      return { success: false, error: "UNAUTHORIZED: Active session required." };
-    }
+    const { requireAdminUser } = await import("@/lib/auth");
+    const { userId } = await requireAdminUser();
 
     const admin = createSupabaseAdminClient();
     if (!admin) return { success: false, error: "Database client unavailable." };
 
-    const { extractUserEmail, INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_CLERK_ID } = await import("@/lib/auth");
-    const email = extractUserEmail(user) || "";
-
-    const isAuthorizedAdmin =
-      email === INITIAL_ADMIN_EMAIL.toLowerCase() ||
-      user.id === INITIAL_ADMIN_CLERK_ID;
-
     let { data: profile } = await admin
       .from("profiles")
-      .select("id, role, email, clerk_user_id")
-      .eq("clerk_user_id", user.id)
+      .select("id")
+      .eq("clerk_user_id", userId)
       .maybeSingle();
 
-    if (!profile && email) {
-      const { data: profileByEmail } = await admin
+    if (!profile) {
+      const { data: p } = await admin
         .from("profiles")
-        .select("id, role, email, clerk_user_id")
-        .ilike("email", email)
+        .select("id")
+        .ilike("email", "christian.paradiang@urios.edu.ph")
         .maybeSingle();
-
-      if (profileByEmail) {
-        profile = profileByEmail;
-        await admin
-          .from("profiles")
-          .update({ clerk_user_id: user.id, updated_at: new Date().toISOString() })
-          .eq("id", profileByEmail.id);
-      }
+      profile = p;
     }
 
-    if (!isAuthorizedAdmin || !profile) {
-      return { success: false, error: "UNAUTHORIZED: Only the authorized administrator can modify points configuration." };
+    if (!profile) {
+      return { success: false, error: "UNAUTHORIZED: Administrator profile not found." };
     }
 
     const { error } = await admin

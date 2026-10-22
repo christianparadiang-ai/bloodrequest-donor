@@ -1,12 +1,35 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { HeartPulse, User, Bell, Shield } from "lucide-react";
+import { getCurrentUserRoleAction } from "@/lib/auth/actions";
 
 export function AuthNav() {
   const { isSignedIn, isLoaded, user } = useUser();
+  const [serverIsAdmin, setServerIsAdmin] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (isSignedIn && user?.id) {
+      getCurrentUserRoleAction()
+        .then((res) => {
+          if (active) {
+            setServerIsAdmin(res.isAdmin);
+          }
+        })
+        .catch(() => {
+          if (active) {
+            setServerIsAdmin(false);
+          }
+        });
+    }
+    return () => {
+      active = false;
+    };
+  }, [isSignedIn, user?.id]);
 
   // When Clerk is loaded and user is authenticated
   if (isLoaded && isSignedIn && user) {
@@ -19,8 +42,10 @@ export function AuthNav() {
       ""
     ).toLowerCase().trim();
     // Strictly check verified administrator identity to prevent ordinary users from seeing the Admin link
-    const isAuthorizedAdmin =
+    const isClientAdminIdentity =
       (primaryEmail === "christian.paradiang@urios.edu.ph" || adminEmailPresent || user.id === "user_3KTw3DOq4dsbAKiqeQ50fiwOZZU");
+
+    const isAuthorizedAdmin = serverIsAdmin !== null ? serverIsAdmin : isClientAdminIdentity;
 
     return (
       <div className="flex items-center gap-2.5">

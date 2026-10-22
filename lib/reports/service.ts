@@ -45,17 +45,11 @@ export type ReportCategory =
 /**
  * Validates whether the caller has permissions to view detailed operational reports.
  */
-async function verifyReportAccess(clerkUserId: string): Promise<{ authorized: boolean; error?: string }> {
-  const admin = createSupabaseAdminClient();
-  if (!admin) return { authorized: false, error: "Database client unavailable." };
+async function verifyReportAccess(clerkUserId: string, email?: string | null): Promise<{ authorized: boolean; error?: string }> {
+  const { resolveUserRole } = await import("@/lib/auth");
+  const role = await resolveUserRole(clerkUserId, email);
 
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("role")
-    .eq("clerk_user_id", clerkUserId)
-    .maybeSingle();
-
-  if (!profile || !PRIVILEGED_ROLES.includes(profile.role as UserRole)) {
+  if (!PRIVILEGED_ROLES.includes(role)) {
     return {
       authorized: false,
       error: "UNAUTHORIZED: Access to operational analytics requires hospital staff or administrator authorization.",
@@ -70,6 +64,7 @@ async function verifyReportAccess(clerkUserId: string): Promise<{ authorized: bo
  */
 export async function getAnalyticsReport(options: {
   clerkUserId: string;
+  email?: string | null;
   periodType: PeriodType;
   date?: string;
   year?: number;
@@ -77,7 +72,7 @@ export async function getAnalyticsReport(options: {
   customStart?: string;
   customEnd?: string;
 }): Promise<{ success: boolean; data?: AnalyticsSummary; error?: string }> {
-  const authCheck = await verifyReportAccess(options.clerkUserId);
+  const authCheck = await verifyReportAccess(options.clerkUserId, options.email);
   if (!authCheck.authorized) {
     return { success: false, error: authCheck.error };
   }
@@ -264,6 +259,7 @@ export async function getAnalyticsReport(options: {
  */
 export async function generateCsvExport(options: {
   clerkUserId: string;
+  email?: string | null;
   category: ReportCategory;
   periodType: PeriodType;
   date?: string;
@@ -278,7 +274,7 @@ export async function generateCsvExport(options: {
   recordCount?: number;
   error?: string;
 }> {
-  const authCheck = await verifyReportAccess(options.clerkUserId);
+  const authCheck = await verifyReportAccess(options.clerkUserId, options.email);
   if (!authCheck.authorized) {
     return { success: false, error: authCheck.error };
   }
