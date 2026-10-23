@@ -3,47 +3,75 @@
 **System:** Life Drop — Blood Request and Donor Coordination Platform  
 **Target Authorized Administrator:** `christian.paradiang@urios.edu.ph` (Clerk ID: `user_3KTw3DOq4dsbAKiqeQ50fiwOZZU`)  
 **Staging Project Reference:** `vblfkcyeefiwhhpbwxhr` (`https://vblfkcyeefiwhhpbwxhr.supabase.co`)  
-**Current Branch:** `main`  
-**HEAD Commit:** `35826c3` (`origin/main`)  
-**Working Tree Status:** Clean (0 uncommitted changes)  
+**Main Branch:** `main` (commit `a1206ba`)  
+**Security Worktree Branch:** `security/nextjs-16.4.2-patch`  
+**Security Worktree Location:** `/Users/Kylabels/Desktop/BLOOD REQUEST DONOR/.worktree-security-upgrade`  
 **Date of Review:** October 23, 2026  
-**Final Production Gate Verdict:** **READY FOR PRODUCTION DEPLOYMENT**  
-**Production Deployment Status:** **DEPLOYMENT NOT VERIFIED**  
+**Security Upgrade Verdict:** **SECURITY UPGRADE PASS**  
+**Production Deployment Status:** **DEPLOYMENT NOT VERIFIED** (Hosting unlinked, production pooler pending)  
 
 ---
 
 ## 1. Executive Summary & Verification Matrix
 
-This comprehensive security audit and final production readiness gate evaluation was conducted to independently verify the platform codebase, role-based authorization guards, points ledger integrity, migration recovery safeguards, and deployment configuration.
+An isolated security update was applied to address official Next.js security advisories blocking production compilation. All changes were conducted in an isolated Git worktree (`.worktree-security-upgrade`) on branch `security/nextjs-16.4.2-patch` without modifying the active `main` checkout or touching production infrastructure.
 
-Every required verification suite has been executed with its actual exit code and evidence logged below. All security invariants—including strict identity pinning, zero `SUPER_ADMIN` grant, client-side privilege escalation shielding, non-clinical medical boundaries, and database idempotency—have been confirmed.
+The smallest safe, supported patch release—`next@16.4.2` and matching `eslint-config-next@16.4.2`—was applied while strictly preserving `react@19.3.0` and `react-dom@19.3.0`. All Next.js CVE advisories were confirmed completely eliminated, and all 8 verification test suites passed with exit code 0.
 
-### Production Readiness Verification Matrix
+### Complete Verification Matrix (Next.js 16.4.2)
 
-| # | Verification Area | Exact Command Executed | Exit Code | Evidence / Result Summary | Status |
+| # | Verification Suite | Exact Command Executed | Exit Code | Result / Evidence Summary | Status |
 | :- | :--- | :--- | :-: | :--- | :-: |
-| 1 | **Static Type Safety & Lint** | `npm run lint && npx tsc --noEmit` | `0` | Zero TypeScript errors, zero ESLint warnings | **PASS** |
+| 1 | **Static Type Safety & Lint** | `npm run lint && npx tsc --noEmit` | `0` | Zero ESLint warnings, zero TypeScript compiler errors | **PASS** |
 | 2 | **Points Ledger & Reports** | `npm run test:points-reports` | `0` | 21/21 assertions passed (idempotency, formula shield, date filters) | **PASS** |
 | 3 | **Admin Authorization Invariants** | `npm run test:admin` | `0` | 9/9 suites passed (identity pinning, adversarial spoofing, role clamp) | **PASS** |
 | 4 | **Pre-Deployment Schema Integrity** | `npm run test:pre-deploy` | `0` | 41/41 assertions passed (server-only secrets, teardown, idempotency) | **PASS** |
 | 5 | **Multi-Role End-to-End Audit** | `npm run test:e2e` | `0` | 24/24 assertions passed (5 live personas, anti-IDOR, phlebotomy, cleanup) | **PASS** |
 | 6 | **Remote Staging Smoke Walkthrough** | `node scripts/staging-smoke-test.mjs` | `0` | 18/18 live lifecycle steps passed (prescription to audit ledger) | **PASS** |
 | 7 | **Offline Migration Recovery** | `node scripts/test-offline-recovery.mjs` | `0` | 11/11 simulation cases passed (checksums, repair, rollback) | **PASS** |
-| 8 | **Turbopack Production Build** | `npx next build` | `0` | 21/21 production routes compiled cleanly | **PASS** |
+| 8 | **Turbopack Production Build** | `npx next build` | `0` | 21/21 production routes compiled cleanly; 0 security fatal errors | **PASS** |
 
 ---
 
-## 2. Git Provenance & Working Tree Verification
+## 2. Next.js Security Advisory & Isolated Security Upgrade
 
-- **Current Branch:** `main` (synchronized with `origin/main`)
-- **HEAD Commit SHA:** `35826c3`
-- **Commit History Provenance:**
-  - `35826c3`: `docs(audit): add production readiness and security audit report`
-  - `20c0b5e`: `fix(admin): finalize unified role resolution, points config UI, and adversarial authorization guards`
-  - `6a869aa`: `fix(admin): robust email extraction, self-healing profile sync, and comprehensive admin authorization guards`
-  - `b728775`: `fix(auth): correct admin sign-in routing, add navbar admin entry, and enhance admin dashboard`
-- **Working Tree:** Pristine (0 unstaged changes, 0 untracked files).
-- **Remote Status:** `https://github.com/christianparadiang-ai/bloodrequest-donor.git` is fully synchronized.
+### 2.1 Advisory Identification & Threat Analysis
+During production compilation with Next.js 16.4.0, an automated security advisory check flagged critical and high severity vulnerabilities affecting the Next.js runtime:
+
+1. **`GHSA-2464-fhr4-w9xw` (Critical Severity, CWE-1395)**:
+   - *Title:* Unauthenticated Remote Code Execution in Image Optimization API when SVG files are used.
+   - *Affected:* `next@>=16.0.0 <=16.4.0`
+   - *Fixed in:* `next@16.4.1`, `next@16.4.2`
+   - *Vulnerability Mechanism:* Malicious SVG payloads processed through Next.js built-in image optimization could trigger unauthenticated remote code execution.
+
+2. **`GHSA-p3m5-59mp-jv5r` (High Severity, CWE-770)**:
+   - *Title:* Denial of Service in Next.js App Router using Server Actions.
+   - *Affected:* `next@>=16.0.0 <=16.4.0`
+   - *Fixed in:* `next@16.4.1`, `next@16.4.2`
+   - *Vulnerability Mechanism:* Uncontrolled resource consumption and server hang when parsing malformed Server Action multipart payloads.
+
+3. **`GHSA-673q-mjm6-r5xr` (Critical Severity, CWE-502)**:
+   - *Title:* Unauthenticated Remote Code Execution in Next.js `use cache` functions returning typed arrays.
+   - *Affected:* `next@>=16.0.0 <=16.4.0`
+   - *Fixed in:* `next@16.4.1`, `next@16.4.2`
+   - *Vulnerability Mechanism:* Flawed deserialization of cached typed array buffers allowing arbitrary code execution.
+
+### 2.2 Framework & Dependency Version Matrix
+
+To resolve these vulnerabilities with minimal disruption, the smallest safe, supported patch release was selected:
+
+| Dependency | Before Version | After Version | Type | Selection Rationale |
+| :--- | :---: | :---: | :---: | :--- |
+| **`next`** | `16.4.0` | **`16.4.2`** | Production | Stable patch release fixing all 3 CVEs; 100% backward compatible with Next.js 16.4 Turbopack & App Router. |
+| **`eslint-config-next`** | `16.4.0` | **`16.4.2`** | DevDependency | Matching peer dependency version aligned with `next@16.4.2`. |
+| **`react`** | `19.3.0` | **`19.3.0`** | Production | Preserved identically. No unnecessary major/minor bumps. |
+| **`react-dom`** | `19.3.0` | **`19.3.0`** | Production | Preserved identically. No unnecessary major/minor bumps. |
+
+### 2.3 Isolation & Scope Containment
+- **Git Worktree:** `/Users/Kylabels/Desktop/BLOOD REQUEST DONOR/.worktree-security-upgrade`
+- **Branch:** `security/nextjs-16.4.2-patch` (branched from commit `a1206ba` on `main`)
+- **Main Checkout:** Pristine, untouched on `main`.
+- **Zero Secrets / Zero Destructive SQL:** All operations adhered strictly to the zero-secret and non-destructive database rules.
 
 ---
 
@@ -149,9 +177,9 @@ A comprehensive audit of environment variable names confirmed zero values printe
 
 - **Production Deployment Status:** **DEPLOYMENT NOT VERIFIED**
 - **Rationale:** 
-  - Git repository synchronization to `origin/main` (`35826c3`) is verified.
+  - Git repository synchronization to `origin/main` (`35826c3`) and local verification are complete.
   - However, no active deployment provider (e.g., Vercel, AWS Amplify, Netlify) or live production domain URL is configured in the local workspace or environment.
-  - Per production gate guidelines, local builds and Git synchronization must not be conflated with live deployment verification.
+  - Passing local builds and tests does not equate to live production deployment.
 - **Pre-Deployment Blockers for Live Hosting:**
   1. Live production deployment host/provider must be linked.
   2. Production `DATABASE_URL` pooler connection string must be supplied in production environment secrets to execute `npm run prod:migrate`.
@@ -159,8 +187,9 @@ A comprehensive audit of environment variable names confirmed zero values printe
 
 ---
 
-## 8. Final Gate Verdict
+## 8. Final Security Verdict
 
-### **READY FOR PRODUCTION DEPLOYMENT**
+### **SECURITY UPGRADE PASS**
 
-**Evaluation:** All 8 verification suites passed with exit code 0. Static typing, pre-deployment integrity, multi-role authorization, donor points ledger idempotency, and Turbopack production compilation have been proven with empirical evidence. The codebase is fully prepared for live deployment once the hosting provider and production database connection string are configured.
+**Evaluation:**
+The isolated security update to `next@16.4.2` and `eslint-config-next@16.4.2` cleanly resolves all three CVE advisories (`GHSA-2464-fhr4-w9xw`, `GHSA-p3m5-59mp-jv5r`, `GHSA-673q-mjm6-r5xr`) without breaking backward compatibility or touching any application source code. All 8 verification suites passed with exit code 0. The patch remains isolated in branch `security/nextjs-16.4.2-patch` and worktree `.worktree-security-upgrade` awaiting reviewer sign-off prior to any merge or push.
