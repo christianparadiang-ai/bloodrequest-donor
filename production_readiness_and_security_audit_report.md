@@ -2,33 +2,34 @@
 
 **System:** Life Drop — Blood Request and Donor Coordination Platform  
 **Target Authorized Administrator:** `christian.paradiang@urios.edu.ph` (Clerk ID: `user_3KTw3DOq4dsbAKiqeQ50fiwOZZU`)  
-**Staging Project Reference:** `vblfkcyeefiwhhpbwxhr` (`https://vblfkcyeefiwhhpbwxhr.supabase.co`)  
+**Staging Supabase Reference:** `vblfkcyeefiwhhpbwxhr` (`https://vblfkcyeefiwhhpbwxhr.supabase.co`)  
+**Production Supabase Reference:** `yvddbpugkfpoeleuyzci` (`https://yvddbpugkfpoeleuyzci.supabase.co`)  
 **Current Branch:** `main`  
-**HEAD Commit:** `375209dae4e7d447edf819c5e1bae3895799e4e1` (`375209d`)  
-**Integrated Security Branch:** `security/nextjs-16.4.2-patch`  
+**HEAD Commit:** `47d0b2401baad58019808386a5a3a29b469442a8` (`47d0b24`)  
+**Remote Tracking:** 3 commits ahead of `origin/main` (`35826c3`) — *push pending user approval*  
 **Working Tree Status:** Clean (0 uncommitted changes)  
 **Date of Review:** October 23, 2026  
 **Final Production Gate Verdict:** **READY FOR DEPLOYMENT**  
-**Production Deployment Status:** **DEPLOYMENT NOT VERIFIED** (Hosting unlinked, production pooler pending)  
+**Production Deployment Status:** **DEPLOYMENT NOT VERIFIED** (Hosting unlinked, production credentials pending)  
 
 ---
 
 ## 1. Executive Summary & Verification Matrix
 
-The isolated Next.js security patch has been reviewed, approved, and fast-forward merged into `main` at commit `375209d`. Every verification suite and build pipeline check has been executed directly on the updated `main` branch with clean exit codes (`0`).
+The Next.js security patch (`next@16.4.2` and `eslint-config-next@16.4.2`) has been fast-forward merged into `main` at commit `375209d`, resolving all three CVE advisories (`GHSA-2464-fhr4-w9xw`, `GHSA-p3m5-59mp-jv5r`, `GHSA-673q-mjm6-r5xr`).
 
-All security invariants—including administrator identity pinning, zero `SUPER_ADMIN` elevation, anti-spoofing role clamping, points ledger idempotency, non-clinical medical boundaries, and zero secret leakage—have been re-confirmed.
+A full suite of static analysis, schema integrity, role-based authorization, points ledger, end-to-end integration, and Turbopack production compilation tests was executed on the updated `main` branch with 100% pass rates.
 
 ### Comprehensive Post-Merge Verification Matrix (`main` branch)
 
-| # | Verification Suite | Exact Command Executed | Exit Code | Result / Evidence Summary | Status |
+| # | Verification Suite | Exact Shell Command Executed | Exit Code | Result / Empirical Evidence Summary | Status |
 | :- | :--- | :--- | :-: | :--- | :-: |
-| 1 | **Clean Dependency Install** | `npm ci` | `0` | 621 packages locked and audited cleanly | **PASS** |
-| 2 | **Static Linting** | `npm run lint` | `0` | Zero ESLint warnings, zero errors | **PASS** |
-| 3 | **TypeScript Type Safety** | `npx tsc --noEmit` | `0` | Zero TypeScript compiler errors | **PASS** |
-| 4 | **Admin Authorization Invariants** | `npm run test:admin` | `0` | 9/9 suites passed (identity pinning, adversarial spoofing, role clamp) | **PASS** |
+| 1 | **Clean Dependency Sync** | `npm ci` | `0` | 621 packages locked and audited cleanly | **PASS** |
+| 2 | **Static Code Linting** | `npm run lint` | `0` | Zero ESLint warnings, zero errors | **PASS** |
+| 3 | **TypeScript Type Checking** | `npx tsc --noEmit` | `0` | Zero TypeScript compiler errors across all routes & actions | **PASS** |
+| 4 | **Admin Role & Authorization** | `npm run test:admin` | `0` | 9/9 suites passed (identity pinning, adversarial spoofing, role clamp) | **PASS** |
 | 5 | **Points Ledger & Reports** | `npm run test:points-reports` | `0` | 21/21 assertions passed (idempotency, formula shield, date filters) | **PASS** |
-| 6 | **Pre-Deployment Schema Integrity** | `npm run test:pre-deploy` | `0` | 41/41 assertions passed (server-only secrets, teardown, idempotency) | **PASS** |
+| 6 | **Pre-Deployment Schema Integrity** | `npm run test:pre-deploy` | `0` | 41/41 assertions passed (server-only secrets, safe teardowns, idempotency) | **PASS** |
 | 7 | **Multi-Role End-to-End Audit** | `npm run test:e2e` | `0` | 24/24 assertions passed (5 live personas, anti-IDOR, phlebotomy, cleanup) | **PASS** |
 | 8 | **Remote Staging Smoke Walkthrough** | `node scripts/staging-smoke-test.mjs` | `0` | 18/18 live lifecycle steps passed (prescription to audit ledger) | **PASS** |
 | 9 | **Offline Migration Recovery** | `node scripts/test-offline-recovery.mjs` | `0` | 11/11 simulation cases passed (checksums, repair, rollback) | **PASS** |
@@ -36,155 +37,110 @@ All security invariants—including administrator identity pinning, zero `SUPER_
 
 ---
 
-## 2. Next.js Security Advisory & Integration Details
+## 2. Infrastructure & Hosting Analysis
 
-### 2.1 Resolved Vulnerabilities
-The production build previously flagged security advisories affecting Next.js versions `<=16.4.0`. The applied patch resolves all three CVE advisories:
+### 2.1 Hosting Provider (Vercel)
+- **Target Provider:** Vercel is the confirmed host based on `vercel.json` which declares cron triggers for:
+  - `/api/workers/outbox` (Runs daily at 00:00 UTC)
+  - `/api/workers/reconciliation` (Runs daily at 01:00 UTC)
+- **Current Link Status:** Unlinked (`.vercel` directory does not exist).
+- **Required Account Action:** Link the repository to Vercel either via GitHub integration (importing `christianparadiang-ai/bloodrequest-donor`) or via `npx vercel link` in a terminal with developer authentication.
 
-1. **`GHSA-2464-fhr4-w9xw` (Critical Severity, CWE-1395)**:
-   - *Title:* Unauthenticated Remote Code Execution in Image Optimization API when SVG files are used.
-   - *Affected:* `next@>=16.0.0 <=16.4.0`
-   - *Fixed in:* `next@16.4.2`
-   - *Resolution:* SVG optimization isolation in Next.js image component.
+### 2.2 Supabase Production Database & Migrations
+- **Target Project:** `yvddbpugkfpoeleuyzci` (strictly isolated from staging `vblfkcyeefiwhhpbwxhr`).
+- **Migration Architecture Investigation:**
+  - `scripts/deploy-migrations.mjs` was audited. It executes SQL migrations against the Supabase Management API (`https://api.supabase.com/v1/projects/${projectRef}/database/query`).
+  - **`DATABASE_URL` Finding:** `DATABASE_URL` is **NOT mandatory** for the existing migration runner. The runner directly utilizes `SUPABASE_ACCESS_TOKEN` (Supabase Personal Access Token) and `NEXT_PUBLIC_SUPABASE_URL`.
+  - **Prerequisite for `npm run prod:migrate`:** A valid `SUPABASE_ACCESS_TOKEN` generated from `https://app.supabase.com/account/tokens` must be provided.
+- **Migration Execution Status:** Zero production migrations have been applied. Execution is blocked pending user authorization and credential configuration.
 
-2. **`GHSA-p3m5-59mp-jv5r` (High Severity, CWE-770)**:
-   - *Title:* Denial of Service in Next.js App Router using Server Actions.
-   - *Affected:* `next@>=16.0.0 <=16.4.0`
-   - *Fixed in:* `next@16.4.2`
-   - *Resolution:* Stricter multipart payload validation and bounded resource allocation.
-
-3. **`GHSA-673q-mjm6-r5xr` (Critical Severity, CWE-502)**:
-   - *Title:* Unauthenticated Remote Code Execution in Next.js `use cache` functions returning typed arrays.
-   - *Affected:* `next@>=16.0.0 <=16.4.0`
-   - *Fixed in:* `next@16.4.2`
-   - *Resolution:* Hardened deserialization logic for cached typed arrays.
-
-### 2.2 Framework & Dependency Version Matrix
-
-| Package | Before Version | After Version | Type | Status |
-| :--- | :---: | :---: | :---: | :--- |
-| **`next`** | `16.4.0` | **`16.4.2`** | Production | Official latest stable release on npm; 0 CVEs |
-| **`eslint-config-next`** | `16.4.0` | **`16.4.2`** | DevDependency | Matching peer dependency |
-| **`react`** | `19.3.0` | **`19.3.0`** | Production | Preserved identically |
-| **`react-dom`** | `19.3.0` | **`19.3.0`** | Production | Preserved identically |
+### 2.3 Clerk Production Authentication & Webhooks
+- **Authentication Provider:** Clerk is the sole authentication provider.
+- **Webhook Endpoint:** `/api/webhooks/clerk` (`app/api/webhooks/clerk/route.ts`).
+  - Verifies Svix signatures (`svix-id`, `svix-timestamp`, `svix-signature`) using native Node.js crypto and timing-safe equality.
+  - Requires `CLERK_WEBHOOK_SECRET` in environment variables.
+- **Live Endpoint Configuration:**
+  - Once deployed, register `https://<production-domain>/api/webhooks/clerk` in Clerk Dashboard -> Webhooks.
+  - Subscribe to `user.created`, `user.updated`, and `user.deleted`.
+- **Security Key Flag / Rotation Advisory:**
+  - Any previously exposed or shared Clerk development secret key (`sk_test_...`) should be revoked and rotated in the Clerk Dashboard under API Keys.
+  - Production requires live keys (`pk_live_...` and `sk_live_...`) configured exclusively in hosting environment secrets.
 
 ---
 
-## 3. Administrator Identity, Authorization & Role-Clamping Verification
+## 3. Administrator Identity & Server-Side Security Invariants
 
-### 3.1 Authorized Initial Administrator Identity
-- **Authorized Email:** `christian.paradiang@urios.edu.ph`
-- **Authorized Clerk ID:** `user_3KTw3DOq4dsbAKiqeQ50fiwOZZU`
-- **Database Profile (`public.profiles`):**
-  - ID: `2f2a0ad2-cf2f-4d2a-bab7-2e816e83d7e0`
-  - Role: `ADMIN`
-  - Full Name: `CHRISTIAN DAVE PARADIANG`
-  - Total Matching Rows: Exactly 1 profile.
+### 3.1 Authorized Initial Administrator
+- **Designated Email:** `christian.paradiang@urios.edu.ph`
+- **Clerk User ID:** `user_3KTw3DOq4dsbAKiqeQ50fiwOZZU`
+- **Database Profile (`public.profiles`):** ID `2f2a0ad2-cf2f-4d2a-bab7-2e816e83d7e0`, Role `ADMIN`.
 
-### 3.2 Anti-Privilege Escalation & Server-Side Guardrails
+### 3.2 Server-Side Authorization Invariants
 1. **Zero `SUPER_ADMIN` Grant:** `SUPER_ADMIN` is never granted to the platform administrator. The account is authorized exclusively as `ADMIN`.
 2. **Strict Server-Side Role Clamping:** In `lib/auth/index.ts` (`resolveUserRole`), any unauthorized account whose database row or claim attempts `ADMIN` or `SUPER_ADMIN` is automatically clamped to `USER`.
-3. **Adversarial Identity Rejection:** Tested in Suite 9 of `scripts/test-admin-authorization-invariants.mjs`:
-   - `christian.paradiang@gmail.com` -> clamped to `USER`
-   - `not.christian.paradiang@urios.edu.ph` -> clamped to `USER`
-   - `christian.paradiang+admin@urios.edu.ph` -> clamped to `USER`
-   - `christian.paradiang@urios.edu.ph.attacker.com` -> clamped to `USER`
-4. **Server Action Protection:**
-   - `updatePointsConfigAction` (`lib/reports/actions.ts`): Enforces `requireAdminUser()`, rejecting unauthorized callers.
-   - `adjustDonorPointsAction` (`lib/donations/actions.ts`): Rejects unauthorized callers with `UNAUTHORIZED: Only administrators can adjust donor points.`
-   - `fetchAnalyticsReportAction` & `exportCsvReportAction`: Enforces `verifyReportAccess` with canonical `resolveUserRole`.
-5. **Page-Level Protection:**
-   - `/admin`: Renders Access Restricted for non-privileged accounts.
-   - `/admin/donors`: Renders Access Restricted for non-privileged accounts.
-   - `/admin/reports`: Renders Access Restricted for non-privileged accounts.
+3. **Adversarial Identity Rejection:** Tested in Suite 9 of `scripts/test-admin-authorization-invariants.mjs` against spoofed emails and domain lookalikes.
+4. **Server Action & Route Protection:** All admin server actions (`updatePointsConfigAction`, `adjustDonorPointsAction`, `fetchAnalyticsReportAction`, `exportCsvReportAction`) enforce `requireAdminUser()`. Non-privileged users accessing `/admin` receive an explicit "Access Restricted" screen.
+5. **Donor Privacy:** Full donor surnames are never exposed to recipients or in public listings.
 
 ---
 
-## 4. Donor Points Ledger, Idempotency & Reporting Guardrails
+## 4. Production Environment Variables Audit (By Name Only)
 
-1. **Award Conditions:** 100 points per verified whole blood collection (`DEFAULT_POINTS_PER_DONATION = 100`). Points are credited only upon clinical collection verification.
-2. **Physical Idempotency Unique Index:** Migration 16 establishes a unique partial index on `public.donor_points_transactions(donation_id)` WHERE `transaction_type = 'DONATION_COMPLETED'`. Duplicate point credits for the same donation trigger PostgreSQL error 23505 and are rejected.
-3. **Auditable Ledger:** All transactions record `donor_profile_id`, `points`, `transaction_type`, `reference_id`, and `reason`.
-4. **Configurable Thresholds:** Maintained in `public.points_config` (Bronze 100, Silver 300, Gold 600, Platinum 1000). Governed via `PointsConfigCard` in `app/admin/page.tsx`.
-5. **Report Date Filtering & CSV Shielding:**
-   - Strict Monday-to-Sunday ISO week boundaries verified.
-   - Formula injection characters (`=`, `+`, `-`, `@`, `\t`, `\r`) are sanitized per RFC 4180 with single-quote escaping.
+A comprehensive audit of environment variable names confirmed zero values printed, committed, or requested:
 
----
-
-## 5. Staging Safety, Isolation & Fixture Cleanup
-
-1. **Non-Destructive Execution:** All staging tests executed non-destructive operations. Zero `DROP TABLE`, `DROP COLUMN`, or `DROP SCHEMA CASCADE` operations were executed.
-2. **Fixture Cleanup:** In `scripts/test-e2e-roles-and-readiness.mjs`, all created actor personas, commitments, and test records were purged during the teardown phase (`✓ Staging audit test fixtures safely cleaned up`).
-3. **Run Isolation:** In `scripts/staging-smoke-test.mjs`, all entities were isolated with unique `runId` timestamps.
-
----
-
-## 6. Environment Variables Audit (By Name Only)
-
-A comprehensive audit of environment variable names confirmed zero values printed or committed:
-
-### Staging Environment (`.env.local`)
-- `NEXT_PUBLIC_APP_ENV`: CONFIGURED
-- `APP_ENV`: CONFIGURED
-- `NODE_ENV`: CONFIGURED
-- `NEXT_PUBLIC_SUPABASE_URL`: CONFIGURED (targets staging project `vblfkcyeefiwhhpbwxhr`)
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: CONFIGURED
-- `SUPABASE_SERVICE_ROLE_KEY`: CONFIGURED (server-only)
-- `DATABASE_URL`: EMPTY
-- `NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET`: CONFIGURED
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`: CONFIGURED
-- `CLERK_SECRET_KEY`: CONFIGURED (server-only)
-- `CLERK_WEBHOOK_SECRET`: CONFIGURED (server-only)
-- `NEXT_PUBLIC_CLERK_SIGN_IN_URL`: CONFIGURED (`/sign-in`)
-- `NEXT_PUBLIC_CLERK_SIGN_UP_URL`: CONFIGURED (`/sign-up`)
-- `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL`: CONFIGURED (`/dashboard`)
-- `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL`: CONFIGURED (`/dashboard`)
-
-### Production Environment (`.env.production`)
-- `NEXT_PUBLIC_APP_ENV`: CONFIGURED
-- `NODE_ENV`: CONFIGURED
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`: CONFIGURED
-- `NEXT_PUBLIC_CLERK_SIGN_IN_URL`: CONFIGURED (`/sign-in`)
-- `NEXT_PUBLIC_CLERK_SIGN_UP_URL`: CONFIGURED (`/sign-up`)
-- `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL`: CONFIGURED (`/dashboard`)
-- `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL`: CONFIGURED (`/dashboard`)
-- `NEXT_PUBLIC_SUPABASE_URL`: CONFIGURED (targets production project `yvddbpugkfpoeleuyzci`)
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: CONFIGURED
-- `NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET`: CONFIGURED
-- `CLERK_SECRET_KEY`: CONFIGURED (server-only)
-- `CLERK_WEBHOOK_SECRET`: CONFIGURED (server-only)
-- `SUPABASE_SERVICE_ROLE_KEY`: CONFIGURED (server-only)
-- `SUPABASE_ACCESS_TOKEN`: CONFIGURED (server-only)
-- `DATABASE_URL`: **EMPTY_OR_UNSET** *(Blocker: Required prior to running direct PostgreSQL migrations on production database)*
-- `CRON_SECRET`: CONFIGURED
-- `WORKER_SECRET`: CONFIGURED
-- `UPSTASH_REDIS_REST_URL`: CONFIGURED
-- `UPSTASH_REDIS_REST_TOKEN`: CONFIGURED
-- `RESEND_API_KEY`: CONFIGURED
-- `TWILIO_ACCOUNT_SID`: CONFIGURED
-- `TWILIO_AUTH_TOKEN`: CONFIGURED
-- `TWILIO_PHONE_NUMBER`: CONFIGURED
+| Variable Name | Staging Status (`.env.local`) | Production Status (`.env.production`) | Requirement for Live Release |
+| :--- | :---: | :---: | :--- |
+| `NEXT_PUBLIC_APP_ENV` | CONFIGURED | CONFIGURED | Mandatory (Set to `production`) |
+| `NODE_ENV` | CONFIGURED | CONFIGURED | Mandatory (Set to `production`) |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | CONFIGURED | PLACEHOLDER | Mandatory (Live Clerk publishable key `pk_live_...`) |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | CONFIGURED (`/sign-in`) | CONFIGURED (`/sign-in`) | Mandatory |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | CONFIGURED (`/sign-up`) | CONFIGURED (`/sign-up`) | Mandatory |
+| `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` | CONFIGURED (`/dashboard`) | CONFIGURED (`/dashboard`) | Mandatory |
+| `NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL` | CONFIGURED (`/dashboard`) | CONFIGURED (`/dashboard`) | Mandatory |
+| `NEXT_PUBLIC_SUPABASE_URL` | CONFIGURED (`vblfkcyeefiwhhpbwxhr`) | CONFIGURED (`yvddbpugkfpoeleuyzci`) | Mandatory |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | CONFIGURED | PLACEHOLDER | Mandatory (Production Supabase anon key) |
+| `NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET` | CONFIGURED | CONFIGURED | Mandatory (`verification-documents`) |
+| `CLERK_SECRET_KEY` | CONFIGURED | PLACEHOLDER | Mandatory (Live Clerk secret key `sk_live_...`) |
+| `CLERK_WEBHOOK_SECRET` | CONFIGURED | PLACEHOLDER | Mandatory (From Clerk Dashboard endpoint `whsec_...`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | CONFIGURED | PLACEHOLDER | Mandatory (Production service role key) |
+| `SUPABASE_ACCESS_TOKEN` | NOT SET | PLACEHOLDER | Mandatory for `npm run prod:migrate` runner |
+| `DATABASE_URL` | EMPTY | EMPTY | **Optional** (Direct pg connection; not needed by migration runner) |
+| `CRON_SECRET` | CONFIGURED | CONFIGURED | Mandatory (Secures Vercel cron endpoints) |
+| `WORKER_SECRET` | CONFIGURED | CONFIGURED | Mandatory (Secures asynchronous worker routes) |
+| `UPSTASH_REDIS_REST_URL` | CONFIGURED | PLACEHOLDER | Recommended for production rate limiting |
+| `UPSTASH_REDIS_REST_TOKEN` | CONFIGURED | PLACEHOLDER | Recommended for production rate limiting |
+| `RESEND_API_KEY` | CONFIGURED | PLACEHOLDER | Recommended for transactional donor emails |
+| `TWILIO_ACCOUNT_SID` | CONFIGURED | PLACEHOLDER | Recommended for SMS emergency broadcasts |
+| `TWILIO_AUTH_TOKEN` | CONFIGURED | PLACEHOLDER | Recommended for SMS emergency broadcasts |
+| `TWILIO_PHONE_NUMBER` | CONFIGURED | CONFIGURED | Recommended for SMS emergency broadcasts |
 
 ---
 
-## 7. Production Deployment Status & Missing Configuration
+## 5. Next Actions Matrix: Automated vs. Account Authorization
 
-- **Production Deployment Status:** **DEPLOYMENT NOT VERIFIED**
-- **Rationale:** 
-  - The security patch has been merged into local `main` (`375209d`), and all local and staging suites pass.
-  - However, the application has **not** been pushed to GitHub, linked to a production hosting provider, or deployed to a live production domain.
-- **Production Pre-Deployment Blockers:**
-  1. **Hosting Linkage:** The repository needs to be linked to a hosting platform (e.g., Vercel project via `vercel link` or GitHub integration).
-  2. **Production Database Connection (`DATABASE_URL`):** A pooled connection string must be configured in production secrets to run `npm run prod:migrate`.
-  3. **Clerk Production Webhook:** The endpoint `https://<production-domain>/api/webhooks/clerk` must be registered in the production Clerk Dashboard with `CLERK_WEBHOOK_SECRET`.
-  4. **Post-Deployment Live Smoke Verification:** Once hosted, an end-to-end smoke verification must run against the production domain to verify live DNS, SSL, Clerk auth, and Supabase data connectivity.
+To maintain strict operational safety, tasks are categorized by execution boundary:
+
+### Category A: Autonomous / Locally Ready Actions
+1. **Push Commits to GitHub:** `git push origin main` (Synchronizes the 3 local commits to GitHub repository `christianparadiang-ai/bloodrequest-donor`).
+2. **Execute Production Migration Dry-Run:** `npm run prod:migrate -- --dry-run` (Verified: 16 migration checksums valid).
+3. **Run Production Build Pre-Flight:** `npx next build` (Verified: 21/21 routes compile cleanly in Turbopack).
+
+### Category B: Account Actions Requiring Developer Authorization
+1. **Rotate Clerk Test Secret:** In Clerk Dashboard -> API Keys, revoke any previously exposed development secret keys.
+2. **Obtain Supabase Access Token:** Generate a Personal Access Token from `https://app.supabase.com/account/tokens` and supply it to run `npm run prod:migrate -- --confirm`.
+3. **Link Hosting Provider:** Connect Vercel to `christianparadiang-ai/bloodrequest-donor` and populate production environment variables in the Vercel dashboard.
+4. **Register Clerk Webhook:** In Clerk Dashboard -> Webhooks, add `https://<production-domain>/api/webhooks/clerk` and copy the signing secret to `CLERK_WEBHOOK_SECRET`.
+5. **Execute Production Database Migrations:** Run `npm run prod:migrate -- --confirm` once credentials and approval are granted.
+6. **Perform Live Smoke Verification:** Execute a remote walkthrough against the public production domain.
 
 ---
 
-## 8. Final Gate Verdict
+## 6. Final Gate Verdict
 
 ### **READY FOR DEPLOYMENT**
 
 **Evaluation:**
-The Next.js security upgrade to `16.4.2` has been merged into `main` with zero breaking changes or regressions. All 10 verification suites passed with exit code 0. The codebase is fully verified and prepared for production release once hosting, production database migration, and webhook registration are executed with user authorization.
+The Life Drop application codebase is fully patched, type-safe, and architecturally verified for production release. The Next.js security upgrade has been integrated into `main` with zero breaking changes.
+
+**Production Deployment Status:** **DEPLOYMENT NOT VERIFIED**  
+Live public deployment remains unverified until external hosting linkage, production database migrations, and Clerk webhook configuration are completed with account authorization.
