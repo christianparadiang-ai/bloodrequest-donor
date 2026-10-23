@@ -5,39 +5,77 @@
 **Staging Supabase Reference:** `vblfkcyeefiwhhpbwxhr` (`https://vblfkcyeefiwhhpbwxhr.supabase.co`)  
 **Production Supabase Reference:** `yvddbpugkfpoeleuyzci` (`https://yvddbpugkfpoeleuyzci.supabase.co`)  
 **Current Branch:** `main`  
-**HEAD Commit:** `44058ab263e6efee341e9d1bf7c76251b22db7c3` (`44058ab`)  
-**Remote Tracking:** Synchronized with `origin/main` at `44058ab` (**PUSH VERIFIED**)  
+**HEAD Commit:** `a8801a742880053703c735d4fa588eaae718d79d` (`a8801a7`)  
+**Remote Tracking:** Synchronized with `origin/main` at `a8801a7` (**PUSH VERIFIED**)  
 **Working Tree Status:** Clean (0 uncommitted changes)  
 **Date of Review:** October 23, 2026  
-**Final Pre-Deployment Verdict:** **READY FOR HOSTING CONFIGURATION**  
+**Database Gate Verdict:** **INSUFFICIENT EVIDENCE**  
 **Production Deployment Status:** **DEPLOYMENT NOT VERIFIED** (Hosting unlinked, production migrations pending)  
 
 ---
 
-## 1. Verified Evidence vs. Unverified Deployment Assumptions
+## 1. Production Database Verification Gate Audit
 
-To maintain strict senior-engineering rigor, platform readiness is divided between empirically verified local/staging facts and unverified external production claims:
+A comprehensive reliability and security review was conducted for the target production Supabase database (`yvddbpugkfpoeleuyzci`) prior to any schema modification.
 
-### 1.1 Empirically Verified in Codebase & Remote
-1. **GitHub Synchronization:** `main` and `origin/main` match at commit `44058ab` (`git push origin main` verified; zero conflicts, clean tree).
-2. **Security CVE Hardening:** Next.js is locked at `16.4.2` and ESLint config next at `16.4.2`, resolving `GHSA-2464-fhr4-w9xw`, `GHSA-p3m5-59mp-jv5r`, and `GHSA-673q-mjm6-r5xr`.
-3. **Static Quality & Compilations:** Clean type-checking (`npx tsc --noEmit`), zero ESLint warnings (`npm run lint`), and 21/21 routes compiled in Turbopack (`npx next build`).
-4. **Admin Role Pinning & Anti-Spoofing:** All 9 suites in `test:admin` pass. The account `christian.paradiang@urios.edu.ph` is exclusively `ADMIN`; zero `SUPER_ADMIN` grants; all unauthorized role elevations clamped to `USER`.
-5. **Donor Points Ledger & Idempotency:** All 21 assertions in `test:points-reports` pass. 100 points/donation verified; unique partial index on `(donation_id)` WHERE `transaction_type = 'DONATION_COMPLETED'`; donor privacy-conscious name formatter masking surnames.
-6. **Reporting Date Calculations & CSV Formula Shielding:** Strict Monday-to-Sunday ISO weeks, month, year, and day filters pass; RFC 4180 formula-injection escaping (`=`, `+`, `-`, `@`, `\t`, `\r`) with UTF-8 BOM confirmed.
-7. **End-to-End Persona Lifecycle:** 24/24 assertions in `test:e2e` pass across 5 personas, anti-IDOR tests, phlebotomy verification, and fixture cleanup.
-8. **Staging Remote Walkthrough:** 18/18 steps in `staging-smoke-test.mjs` pass against staging Supabase project `vblfkcyeefiwhhpbwxhr`.
-9. **Migration Safety & Dry-Run:** 16/16 migrations have valid SHA-256 checksums. Dry-run against `yvddbpugkfpoeleuyzci` passes with zero mutations. `deploy-migrations.mjs` verified to operate via Supabase Management API using `SUPABASE_ACCESS_TOKEN` (`DATABASE_URL` is not required).
+### 1.1 Migration Runner Architecture & Safety Mechanisms (`deploy-migrations.mjs`)
+1. **Ledger Table:** Manages `public._schema_migrations(version, executed_at, status, checksum, error_message)`.
+2. **Checksum Integrity:** Each migration file is hashed using SHA-256 (`crypto.createHash('sha256')`). Checksums are compared before execution and verified during repairs.
+3. **Failure Isolation & Non-Blind Retries:**
+   - Pre-flight queries `SELECT version, status, checksum, error_message FROM public._schema_migrations WHERE status IN ('FAILED', 'UNKNOWN')`.
+   - If any migration failed or is unverified, the runner halts with a hard `SAFETY STOP`. Blind automatic retries are blocked; execution requires explicit `--repair-migration=<filename>`.
+4. **Reconciliation for `UNKNOWN` Status:**
+   - If a previous run resulted in `UNKNOWN` (e.g. network/gateway timeout during commit), `generateVerificationSql()` queries the catalog (`information_schema`, `pg_proc`, `pg_policies`, `pg_enum`). If all expected objects are verified present, it reconciles the ledger entry to `COMPLETED` without re-executing DDL.
+5. **Partial Execution & Transactional Boundaries:**
+   - Enum alterations (`ALTER TYPE ... ADD VALUE`) are extracted and executed in separate autocommit transactions (preventing PostgreSQL errors 25001 and 55P04). Note: Enum additions cannot be rolled back once executed.
+   - All other DDL statements of each migration file are executed inside an atomic transaction (`BEGIN; ... COMMIT;`) alongside the `_schema_migrations` completion record.
+   - If an error occurs in the transaction block, PostgreSQL rolls back all DDL for that specific file, and the runner logs `FAILED` in the ledger.
+   - However, migrations execute sequentially: if migration *N* succeeds and migration *N+1* fails, migration *N* remains committed.
 
-### 1.2 Unverified External Assumptions (Pending Account Action)
-1. **Vercel Hosting:** Not verified. No project is linked (`.vercel` missing); no live public domain assigned.
-2. **Production Database Schema:** Not verified. No migrations have been applied to production project `yvddbpugkfpoeleuyzci`; schema remains uninitialized.
-3. **Production Clerk Webhook:** Not verified. Production live keys and webhook signing secret (`whsec_...`) are unconfigured placeholders; endpoint is not registered in Clerk Dashboard.
-4. **Live Smoke Walkthrough:** Not verified. Live end-to-end tests cannot execute until public hosting and database migrations are active.
+### 1.2 Comprehensive Review of All 16 Migration Files
+
+| # | Migration File | Nature of DDL | Key Schema Objects & Side Effects | Safety / Risk Profile |
+| :-: | :--- | :--- | :--- | :--- |
+| 1 | `20261007_init_lifedrop_schema.sql` | Additive | 7 base enums, 5 tables (`profiles`, `donor_profiles`, `blood_requests`, `donor_commitments`, `audit_logs`), 5 RLS policies | Low risk on fresh DB; uses `IF NOT EXISTS` |
+| 2 | `20261007_enhanced_rls_and_atomic_commitment.sql` | Additive | Atomic function `commit_donor_to_request_atomic`, 5 RLS policies | Uses `DROP POLICY IF EXISTS`; atomic function |
+| 3 | `20261007_verification_documents_and_storage.sql` | Additive | 2 enums, `verification_documents` table, `hospital_affiliation` column, 5 RLS policies | Additive; storage metadata only |
+| 4 | `20261007_donor_coordination_and_commitments.sql` | Additive / Enum Alters | Adds 5 commitment status enums, 1 request status enum, `check_units_fulfillment_balance` constraint, 3 atomic functions | Enum additions irreversible once committed |
+| 5 | `20261007_notifications_and_outbox.sql` | Additive | 2 enums, 3 tables (`notifications`, `notification_events`, `user_notification_preferences`), 4 RLS policies | Additive; clean outbox pattern |
+| 6 | `20261007_donation_operations_and_checkin.sql` | Additive / Enum Alters | Adds 3 check-in status enums, check-in columns on `donor_commitments`, 3 atomic functions | Enum additions irreversible once committed |
+| 7 | `20261007_production_hardening.sql` | Additive | `processed_webhooks` table, `trg_audit_logs_immutable` trigger | Tamper-proofing trigger; prevents audit log mutation |
+| 8 | `20261008_milestone1_donor_profile_enhancements.sql` | Additive | `province`, `consent_to_contact` columns, donor search indexes, 3 RLS policies | Additive; performance indexes |
+| 9 | `20261008_milestone2_blood_request_enhancements.sql` | Additive | Patient info, units needed, expiration, medical prescription storage, 6 RLS policies | Additive; medical requisition fields |
+| 10 | `20261008_milestone3_matching_engine.sql` | Additive | 1 enum, `request_matches` table, blood compatibility matching function, 4 RLS policies | Additive; matching candidate persistence |
+| 11 | `20261008_milestone4_donor_notifications.sql` | Additive / Enum Alters | Enum additions (`POTENTIAL_DONOR_ALERT`, `SENT`), notification channel preferences, 3 RLS policies | Enum additions irreversible once committed |
+| 12 | `20261008_milestone5_donor_commitments.sql` | Additive / Enum Alters | Enums added (`PENDING`, `WITHDRAWN`, `ACCEPTED`), commitment state machine triggers, 5 RLS policies | Enum additions irreversible once committed |
+| 13 | `20261009_milestone6_donation_tracking.sql` | Additive | 1 enum, `donations` table, phlebotomy records, adverse reactions, 4 RLS policies | Additive clinical donation tracking |
+| 14 | `20261009_milestone7_outbox_and_reconciliation.sql` | Additive | Outbox status check constraint, `claim_outbox_jobs`, `reconcile_request_counters` functions | Additive asynchronous worker logic |
+| 15 | `20261009_milestone8_security_hardening.sql` | Additive | `claim_outbox_jobs` hardening, audit log tamper-proofing trigger reinforcement | Re-enforces RLS and immutable triggers |
+| 16 | `20261020_milestone9_donor_points_and_reporting.sql` | Additive / Constraints | `points_config`, `donor_points_transactions` tables, exact-once partial unique index on `(donation_id)` WHERE `transaction_type = 'DONATION_COMPLETED'` | Additive auditable ledger; unique idempotency constraint |
+
+- **Summary of Migration Safety:**
+  - Zero `DROP TABLE` statements across all 16 files.
+  - Zero `DROP COLUMN` statements across all 16 files.
+  - Zero `DROP SCHEMA` statements.
+  - All statements use `CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, or `DROP POLICY IF EXISTS`.
+
+### 1.3 Remote Production Database Inspection & Access Findings
+- **Target URL:** `https://yvddbpugkfpoeleuyzci.supabase.co`
+- **DNS & Network Reachability:** Responds with HTTP 401 over HTTPS (gateway is active and listening).
+- **Inspection Attempt:** An inspection probe was attempted against `information_schema` and `_schema_migrations`.
+- **Credential Finding:** Both `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.production` are unconfigured placeholders (`your_production_supabase_...`).
+- **Remote Database State:** **UNKNOWN**. Because no authorized read-only credentials or service keys exist in the local workspace, the remote database catalog cannot be queried. The remote database cannot be assumed or inferred to be empty from DNS reachability or local dry-runs.
+
+### 1.4 Backup and Recovery Availability Status
+- **Current Backup Status:** **UNCONFIRMED**.
+- **Backup Verification:** Local tooling cannot inspect or verify whether an on-demand snapshot or automated daily backup exists on Supabase project `yvddbpugkfpoeleuyzci`.
+- **Requirement Before Migration:** The developer / account owner must manually confirm or trigger an on-demand backup in the Supabase Dashboard under **Database -> Backups -> Take Backup** prior to executing any DDL.
 
 ---
 
 ## 2. Complete Verification Suite Matrix
+
+Every test suite was executed on `main` at commit `a8801a7` with exit code `0`:
 
 | # | Verification Area | Exact Command Executed | Exit Code | Result / Empirical Evidence Summary | Status |
 | :- | :--- | :--- | :-: | :--- | :-: |
@@ -51,7 +89,7 @@ To maintain strict senior-engineering rigor, platform readiness is divided betwe
 | 8 | **Remote Staging Smoke Walkthrough** | `node scripts/staging-smoke-test.mjs` | `0` | 18/18 live lifecycle steps passed (prescription to audit ledger) | **PASS** |
 | 9 | **Offline Migration Recovery** | `node scripts/test-offline-recovery.mjs` | `0` | 11/11 simulation cases passed (checksums, repair, rollback) | **PASS** |
 | 10 | **Turbopack Production Build** | `npx next build` | `0` | 21/21 production routes compiled cleanly in Turbopack; 0 fatal errors | **PASS** |
-| 11 | **GitHub Remote Push** | `git push origin main` | `0` | Pushed to GitHub; `origin/main` matches HEAD (`44058ab`) | **PASS** |
+| 11 | **GitHub Remote Push** | `git push origin main` | `0` | Synchronized with GitHub `origin/main` (`a8801a7`) | **PASS** |
 
 ---
 
@@ -80,7 +118,7 @@ Audited by variable name and functional requirement (zero secrets exposed):
 - `SUPABASE_ACCESS_TOKEN`: Personal Access Token from Supabase account. Required to run `npm run prod:migrate -- --confirm` via Supabase Management API. **Not needed in Vercel runtime.**
 
 ### Category C: Feature-Dependent / Recommended for Full Production Hardening
-- `UPSTASH_REDIS_REST_URL` & `UPSTASH_REDIS_REST_TOKEN`: **Critical for Distributed Multi-Node Rate Limiting**. If omitted, rate limiting silently degrades to per-container in-memory tracking, which cannot coordinate limits across edge lambdas.
+- `UPSTASH_REDIS_REST_URL` & `UPSTASH_REDIS_REST_TOKEN`: Critical for distributed multi-node rate limiting across edge lambdas.
 - `RESEND_API_KEY`: Required for automated donor notification emails via Resend.
 - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`: Required for emergency donor SMS broadcast alerts.
 
@@ -89,62 +127,13 @@ Audited by variable name and functional requirement (zero secrets exposed):
 
 ---
 
-## 4. Production Database Safety & Rollback Plan
-
-- **Target Project:** `yvddbpugkfpoeleuyzci` (verified live, DNS resolving, isolated from staging `vblfkcyeefiwhhpbwxhr`).
-- **Nature of Migrations:** Strictly additive (0 `DROP TABLE`, 0 `DROP COLUMN`, 0 `DROP SCHEMA`). All DDL uses `IF NOT EXISTS` and `DROP POLICY IF EXISTS`.
-- **Pre-Migration Safety & Rollback Plan:**
-  1. Trigger an on-demand database backup in Supabase Dashboard (Database -> Backups -> Create Backup).
-  2. Confirm dry-run passes: `npm run prod:migrate -- --dry-run` (16/16 checksums match).
-  3. Once `SUPABASE_ACCESS_TOKEN` is supplied and authorized, execute `npm run prod:migrate -- --confirm`.
-  4. If an error occurs, the runner logs `FAILED` in `_schema_migrations` and halts. Recovery requires `--repair-migration=<filename>` after resolving the root cause.
-- **Execution Status:** **Zero production migrations have been executed.** Execution remains blocked pending user authorization.
-
----
-
-## 5. Step-by-Step Account Action Guide
-
-### Step A: Supabase Dashboard — Backup & Access Token
-1. Log in to [Supabase Dashboard](https://app.supabase.com) and navigate to project `yvddbpugkfpoeleuyzci`.
-2. Under **Database -> Backups**, click **Take Backup** to capture a baseline snapshot.
-3. Under **Project Settings -> API**, copy:
-   - Project URL (`https://yvddbpugkfpoeleuyzci.supabase.co`)
-   - `anon` `public` key -> for `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role` key -> for `SUPABASE_SERVICE_ROLE_KEY`
-4. Under **Account Settings -> Access Tokens** (`https://app.supabase.com/account/tokens`), click **Generate New Token**, name it `lifedrop-migration-runner`, and copy it for use as `SUPABASE_ACCESS_TOKEN`.
-
-### Step B: Apply Production Migrations
-In a local terminal with `SUPABASE_ACCESS_TOKEN` set in `.env.production`:
-```bash
-npm run prod:migrate -- --confirm
-```
-This applies the 16 verified migrations sequentially via the Supabase Management API.
-
-### Step C: Vercel Dashboard — Project Import & Environment Variables
-1. Log in to [Vercel](https://vercel.com/new) and click **Add New... -> Project**.
-2. Select GitHub repository: `christianparadiang-ai/bloodrequest-donor`.
-3. Set Framework Preset: `Next.js`.
-4. Under **Environment Variables**, add the **Category A** variables.
-5. Click **Deploy**. Note the assigned domain URL (e.g. `https://bloodrequest-donor.vercel.app`).
-
-### Step D: Clerk Dashboard — Webhooks & Key Rotation
-1. Log in to [Clerk Dashboard](https://dashboard.clerk.com) for the production application.
-2. Under **API Keys**, copy `Publishable key` (`pk_live_...`) and `Secret key` (`sk_live_...`).
-3. Under **API Keys**, if any development key (`sk_test_...`) was previously shared, click **Revoke / Roll Key**.
-4. Under **Webhooks**, click **Add Endpoint**:
-   - Endpoint URL: `https://<your-production-domain>/api/webhooks/clerk`
-   - Subscribe to events: `user.created`, `user.updated`, `user.deleted`
-   - Copy the Signing Secret (`whsec_...`) and update `CLERK_WEBHOOK_SECRET` in Vercel project environment variables.
-   - Trigger a redeployment in Vercel if needed to apply the new secret.
-
----
-
-## 6. Prioritized Launch Checklist
+## 4. Prioritized Launch Checklist
 
 | Priority | Task | Responsibility | Execution Environment | Status |
 | :-: | :--- | :--- | :--- | :-: |
-| **P0** | Database snapshot backup | Developer / Account Owner | Supabase Dashboard | PENDING |
+| **P0** | Take database backup snapshot | Developer / Account Owner | Supabase Dashboard | PENDING |
 | **P0** | Generate Supabase Access Token | Developer / Account Owner | Supabase Dashboard | PENDING |
+| **P0** | Inspect production catalog with read-only query | Autonomous Agent / Developer | Supabase API (Authorized) | PENDING |
 | **P0** | Execute `npm run prod:migrate -- --confirm` | Autonomous Agent / Developer | Local Shell (Authorized) | PENDING |
 | **P0** | Import repository & set Category A env vars | Developer / Account Owner | Vercel Dashboard | PENDING |
 | **P0** | Register production Clerk webhook | Developer / Account Owner | Clerk Dashboard | PENDING |
@@ -154,20 +143,13 @@ This applies the 16 verified migrations sequentially via the Supabase Management
 
 ---
 
-## 7. Single Most Important Next Action
+## 5. Final Database Gate Verdict
 
-> [!IMPORTANT]
-> **Primary Blocker & Next Immediate Step:**
-> **Generate a Supabase Personal Access Token** at [https://app.supabase.com/account/tokens](https://app.supabase.com/account/tokens) and authorize running the production database migrations (`npm run prod:migrate -- --confirm`).
->
-> The production database (`yvddbpugkfpoeleuyzci`) currently has no schema. Deploying the application to Vercel before the database tables and RLS policies are created will cause the app to fail on boot. Applying migrations is the foundation for all subsequent hosting steps.
+### **INSUFFICIENT EVIDENCE**
 
----
-
-## 8. Final Verdict
-
-### **READY FOR HOSTING CONFIGURATION**
-
-> [!NOTE]
-> **Production Deployment Status: DEPLOYMENT NOT VERIFIED**  
-> All codebase changes, security upgrades (`next@16.4.2`), static type checks, and pre-deployment suites are verified and pushed to GitHub (`44058ab`). Live deployment will be verified once the production database migration is executed and Vercel hosting is active.
+**Evaluation:**
+1. The migration files are strictly additive, non-destructive, and structurally safe.
+2. The migration runner (`deploy-migrations.mjs`) contains comprehensive checksum validation, non-blind repair mechanisms, and atomic transactional boundaries.
+3. However, **no valid read-only credentials exist locally to inspect the remote database catalog (`yvddbpugkfpoeleuyzci`)**.
+4. The actual remote schema, table existence, pre-existing migration records in `_schema_migrations`, RLS policies, and backup snapshots remain **UNKNOWN** and cannot be inferred.
+5. In accordance with strict engineering standards, production database migration remains **BLOCKED** from execution until real read-only credentials or a valid access token and confirmed backup snapshot are supplied by the account owner.
